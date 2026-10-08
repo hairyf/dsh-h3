@@ -1,0 +1,3 @@
+- insert:
+    - id: h3-basic
+      name: ./dist/index.mjs

@@ -4,6 +4,8 @@ import { StaleGuardRecorder } from 'tsdown-stale-guard'
 export default defineConfig({
   entry: [
     'src/index.ts',
+    'src/utils.ts',
+    'src/genapi.ts',
   ],
   dts: true,
   exports: true,

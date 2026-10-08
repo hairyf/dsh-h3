@@ -1,0 +1,35 @@
+{
+  "name": "dsh-plugin-h3-basic",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A host-only DeepSeek Harness plugin using dsh-h3",
+  "license": "MIT",
+  "exports": {
+    ".": "./dist/index.mjs"
+  },
+  "types": "./dist/index.d.mts",
+  "files": [
+    "cordis.patch.yml",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-host-webserver": "^0.2.0-rc.2"
+  },
+  "dependencies": {
+    "dsh-h3": "workspace:*",
+    "h3": "catalog:"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-host-webserver": "catalog:",
+    "@types/node": "catalog:types",
+    "tsdown": "catalog:cli",
+    "typescript": "catalog:cli"
+  }
+}

@@ -23,6 +23,15 @@ allowBuilds:
   esbuild: true
   simple-git-hooks: true
 
+catalog:
+  '@deepseek-ai/dsh-host-webserver': ^0.2.0-rc.2
+  '@genapi/core': ^4.1.4
+  '@genapi/pipeline': ^4.1.4
+  '@genapi/presets': ^4.1.4
+  '@genapi/shared': ^4.1.4
+  h3: ^2.0.1
+  ofetch: ^1.5.1
+
 catalogs:
   agentic:
     '@antfu/skills': ^0.1.0
