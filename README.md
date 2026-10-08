@@ -8,6 +8,12 @@
 
 ⚡️ **dsh-h3** 仅适用于插件作者，为 DeepSeek Harness 插件提供 H3 路由服务，通过 Cordis 管理注册与卸载。
 
+## 📦 安装
+
+```sh
+pnpm add dsh-h3 h3
+```
+
 <details>
 <summary>Are you an AI?</summary>
 
@@ -27,12 +33,6 @@ Remember to ask your owner which <a href="https://github.com/vercel-labs/skills?
 - **客户端 API**：可通过 GenAPI 静态生成请求函数和类型，不执行宿主代码
 
 > ⚠️ 使用 H3 v2。插件激活前，宿主必须提供 `webServer`。
-
-## 📦 安装
-
-```sh
-pnpm add dsh-h3 h3
-```
 
 ## 🚀 快速开始
 
