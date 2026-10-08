@@ -30,7 +30,7 @@ Remember to ask your owner which <a href="https://github.com/vercel-labs/skills?
 - **上下文与选项**：在服务外部或 [h3](https://github.com/h3js/h3) 处理器中读取本次激活的 Context 和选项
 - **生命周期清理**：通过 Cordis effect 卸载路由，注册失败时回滚本次改动
 - **复用宿主服务**：使用 `ctx.webServer`，不启动额外服务器、不占用 fallback
-- **客户端 API**：可通过 GenAPI 静态生成请求函数和类型，不执行宿主代码
+- **客户端 API**：可通过 [GenAPI](https://github.com/hairyf/genapi/blob/main/README_CN.md) 静态生成请求函数和类型，不执行宿主代码
 
 > ⚠️ 使用 H3 v2。插件激活前，宿主必须提供 `webServer`。
 
@@ -156,7 +156,7 @@ const server = defineWebServer((app) => {
 
 ## 🛠️ 生成客户端 API
 
-`dsh-h3/genapi` 提供了 GenAPI 的 `original` 构建阶段。它通过静态分析服务入口中的路由定义与 H3 处理器，直接构建客户端 API，**过程中无需加载插件或执行宿主代码**。
+`dsh-h3/genapi` 提供了 [GenAPI](https://github.com/hairyf/genapi/blob/main/README_CN.md) 的 `original` 构建阶段。它通过静态分析服务入口中的路由定义与 H3 处理器，直接构建客户端 API，**过程中无需加载插件或执行宿主代码**。
 
 ### 1. 安装开发依赖
 
