@@ -2,7 +2,12 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "project": ["src/**/*.ts"]
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@genapi/core", "@genapi/pipeline", "@genapi/presets"]
+    },
+    "playground": {
+      "entry": ["genapi.config.ts", "src/client/apis/*.ts"],
+      "ignoreBinaries": ["dsh"]
     }
   },
   "ignoreDependencies": ["@antfu/utils", "taze", "@antfu/skills"]

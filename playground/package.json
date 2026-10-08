@@ -1,5 +1,5 @@
 {
-  "name": "dsh-plugin-h3-basic",
+  "name": "dsh-plugin-playground",
   "type": "module",
   "version": "0.0.0",
   "private": true,
@@ -16,6 +16,7 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
+    "dev:dsh": "dsh web --patch ./cordis.patch.yml",
     "genapi": "genapi",
     "typecheck": "tsc"
   },
@@ -25,8 +26,7 @@
   },
   "dependencies": {
     "dsh-h3": "workspace:*",
-    "h3": "catalog:",
-    "ofetch": "catalog:"
+    "h3": "catalog:"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-host-webserver": "catalog:",

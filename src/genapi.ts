@@ -322,13 +322,6 @@ export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.Config
   scan(file)
   if (!count)
     throw new TypeError('dsh-h3/genapi: no static defineWebServer routes found in input')
-  const http = configRead.config.meta?.import?.http ?? 'ofetch'
-  const main = configRead.graphs.scopes.main
-  if (main && !main.imports.some(item => item.names?.includes('ofetch'))) {
-    main.imports.unshift({ name: 'Http', value: http, namespace: true, type: true }, { names: ['ofetch'], value: http })
-    // The preset fixes its response generic to JSON; a wider responseType breaks ofetch's types.
-    main.typings.push({ name: 'FetchOptions', value: 'Omit<Http.FetchOptions, \'responseType\'> & { responseType?: \'json\' }' })
-  }
   configRead.source = { swagger: '2.0', info: { title: basename(entry, '.ts'), version: '0.0.0' }, paths, definitions: {} }
   return configRead
 }

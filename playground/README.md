@@ -40,11 +40,11 @@ pnpm install
 pnpm build
 
 # 2. 生成示例插件的客户端 API
-pnpm --filter dsh-plugin-h3-basic genapi
+pnpm genapi
 
 # 3. 编译插件并进行类型检查
-pnpm --filter dsh-plugin-h3-basic build
-pnpm --filter dsh-plugin-h3-basic typecheck
+pnpm build
+pnpm typecheck
 
 ```
 
@@ -59,13 +59,11 @@ pnpm --filter dsh-plugin-h3-basic typecheck
 在仓库根目录或示例目录下执行生成命令（生成过程**不启动** DSH，亦**不执行**宿主路由代码）：
 
 ```sh
-pnpm --filter dsh-plugin-h3-basic genapi
+pnpm genapi
 # 或在当前示例目录下：
 pnpm genapi
 
 ```
-
-`genapi.config.ts` 以 `src/host/server/index.ts` 为静态输入，生成使用 `ofetch` 的客户端代码，路径直接由注册代码静态推导决定。
 
 ### 2. 客户端调用示例
 
@@ -96,7 +94,7 @@ console.log(health.uptimeMs, server.port, request.query)
 确保已安装 `dsh` CLI 工具，随后在**仓库根目录**启动 Web Profile：
 
 ```sh
-dsh web --patch ./examples/basic/cordis.patch.yml
+dsh web --patch ./cordis.patch.yml
 ```
 
 * **依赖注入保障**：`inject = ['webServer']` 确保仅在宿主 `webServer` 准备就绪后才激活插件。

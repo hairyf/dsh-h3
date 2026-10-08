@@ -6,7 +6,16 @@
 [![JSDocs][jsdocs-src]][jsdocs-href]
 [![License][license-src]][license-href]
 
-为 DeepSeek Harness 插件提供 H3 路由服务，通过 Cordis 管理注册与卸载。
+⚡️ **dsh-h3** 仅适用于插件作者，为 DeepSeek Harness 插件提供 H3 路由服务，通过 Cordis 管理注册与卸载。
+
+<details>
+<summary>Are you an AI?</summary>
+
+You can run <code>npx skills add hairyf/dsh-h3 --skill dsh-h3 -y</code> to install the skills!
+
+Remember to ask your owner which <a href="https://github.com/vercel-labs/skills?tab=readme-ov-file#supported-agents">Agents</a> need to be supported (using the <code>--agent</code> parameter of skills) to avoid installing too many default <code>agents</code> directories.
+
+</details>
 
 ## 特性
 
@@ -19,23 +28,13 @@
 
 > ⚠️ 使用 H3 v2。插件激活前，宿主必须提供 `webServer`。
 
-## 📦 导出入口
-
-| 入口路径 | 导出内容 | 核心用途 |
-| :--- | :--- | :--- |
-| `dsh-h3` | `defineWebServer`, `HostApp`, `HostRoute`, `HostService`, `HostServiceInstance` | 定义宿主路由服务及其类型 |
-| `dsh-h3/utils` | `getServerContext`, `getServerOptions` | 从服务实例或 H3 事件中读取激活数据 |
-| `dsh-h3/genapi` | `original` | 接入 GenAPI Pipeline，生成客户端 API |
-
-> 💡 **说明**：TypeScript 和 GenAPI 仅用于静态代码生成；若不使用该功能，宿主插件无需额外安装。
-
-## 🚀 安装
+## 📦 安装
 
 ```sh
-pnpm add dsh-h3 h3 @deepseek-ai/cordis @deepseek-ai/dsh-host-webserver
+pnpm add dsh-h3 h3
 ```
 
-## 📖 使用指南
+## 🚀 快速开始
 
 ### 1. 定义与激活路由服务
 
@@ -57,9 +56,7 @@ import { health } from './routes/health'
 export const server = defineWebServer((app) => {
   app.get('/api/health', health)
   app.get({ kind: 'exact', path: '/api/version' }, defineEventHandler(() => ({ version: '1.0.0' })))
-  app.get({ kind: 'prefix', path: '/api/inspect' }, defineEventHandler(event => ({
-    path: event.url.pathname,
-  })))
+  app.get({ kind: 'prefix', path: '/api/inspect' }, defineEventHandler(event => ({ path: event.url.pathname })))
 })
 ```
 
@@ -77,7 +74,6 @@ export function apply(ctx: Context): void {
 
 **注意事项：**
 
-* `defineEventHandler` 等工具请直接从 `h3` 导入，`dsh-h3` 不再二次导出。
 * `server(ctx)` 调用后将返回卸载函数（可手动调用，重复调用安全）。通过 `ctx.effect` 激活时，插件卸载时会自动移除相应路由。
 * 若注册失败，系统仅回滚本次激活的路由，不会影响已存在的路由。
 
@@ -162,20 +158,26 @@ const server = defineWebServer((app) => {
 ### 1. 安装开发依赖
 
 ```sh
-pnpm add -D @genapi/core@^4.1.4 @genapi/pipeline@^4.1.4 @genapi/presets@^4.1.4 @genapi/shared@^4.1.4 typescript
-pnpm add ofetch
+pnpm add -D @genapi/core @genapi/pipeline @genapi/presets
 ```
 
 ### 2. 配置文件 (`genapi.config.ts`)
 
 ```ts
 import { defineConfig } from '@genapi/core'
-import pipeline, { compiler, config, dest, generate } from '@genapi/pipeline'
-import { parser } from '@genapi/presets/swag-ofetch-ts'
+import { fetch } from '@genapi/presets'
 import { original } from 'dsh-h3/genapi'
+import pipeline from '@genapi/pipeline'
 
 export default defineConfig({
-  preset: pipeline(config, original, parser, compiler, generate, dest),
+  preset: pipeline(
+    fetch.ts.config,
+    original,
+    fetch.ts.parser,
+    fetch.ts.compiler,
+    fetch.ts.generate,
+    fetch.ts.dest
+  ),
   input: './src/host/server/index.ts',
   output: {
     main: 'src/client/apis/index.ts',
@@ -184,7 +186,7 @@ export default defineConfig({
 })
 ```
 
-### 3. 执行代码生成
+### 3. 代码生成
 
 ```sh
 pnpm exec genapi
@@ -192,7 +194,7 @@ pnpm exec genapi
 
 ### 规则与限制
 
-* **输入要求**：`input` 文件必须是在模块顶层直接声明 `defineWebServer` 的入口文件（不能是分散的路由目录）。
+* **输入要求**：`input` 文件必须是在模块顶层直接声明 `defineWebServer` 的入口文件。
 * **支持的语法**：
   * 支持 `app.get/post/...`、`app.on('POST', ...)` 及链式调用。
   * 支持静态字符串路径和 exact/prefix 对象路径（prefix 会生成根端点，不自动枚举子路径）。
@@ -202,24 +204,22 @@ pnpm exec genapi
 * **命名规范**：函数名由路径与 HTTP 方法合成（如 `/api/health` -> `getApiHealth`）；若需自定义名称，可配合 `patch.operations` 使用。
 * **暂不支持**：动态条件、循环、子应用挂载、通配符、复杂正则模式、原生的 Node 回调、递归类型及非 JSON 契约（解析遇到不支持的语法时将打印准确的源码位置）。
 
-此配置使用 `ofetch`，生成的客户端不导入宿主代码。可在调用时通过 `options.baseURL` 指定宿主地址，或在同源客户端省略；`options.query` 可传入未声明具名类型的查询字段。客户端的 `responseType` 限定为 JSON。
-
 ---
 
 ## 💡 示例项目
 
-仓库提供了完整的 [basic 示例](<examples/basic/README.md>)，展示了按服务入口与独立路由文件组织的插件、[GenAPI 配置](<examples/basic/genapi.config.ts>)和[生成的客户端 API](<examples/basic/src/client/apis/index.ts>)，包含真实宿主请求与生成一致性检查。
+仓库提供了完整的 [basic 示例](<playground/README.md>)，展示了按服务入口与独立路由文件组织的插件、
+[GenAPI 配置](<playground/genapi.config.ts>)和[生成的客户端 API](<playground/src/client/apis/index.ts>)，包含真实宿主请求与生成一致性检查。
 
 ```sh
 # 安装与构建示例
 pnpm install
+cd playground
+pnpm genapi
 pnpm build
-pnpm --filter dsh-plugin-h3-basic genapi
-pnpm --filter dsh-plugin-h3-basic build
 
 # 运行（需在仓库根目录执行，需提前安装 dsh CLI）
-dsh web --patch ./examples/basic/cordis.patch.yml
-
+dsh web --patch ./cordis.patch.yml
 ```
 
 ---

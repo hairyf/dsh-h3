@@ -32,7 +32,7 @@
     "prepack": "nr build",
     "release": "bumpp",
     "start": "tsx src/index.ts",
-    "test": "pnpm run build && pnpm --filter dsh-plugin-h3-basic build && vitest",
+    "test": "pnpm run build && pnpm --filter dsh-plugin-playground build && vitest",
     "typecheck": "tsc",
     "ci": "pnpm run lint && pnpm run typecheck && pnpm run knip && pnpm run test --run",
     "prepare": "git config core.hooksPath .githooks && simple-git-hooks && skills-npm"
@@ -84,7 +84,6 @@
     "eslint-plugin-sonarjs": "catalog:cli",
     "knip": "catalog:cli",
     "nano-staged": "catalog:cli",
-    "ofetch": "catalog:",
     "publint": "catalog:cli",
     "simple-git-hooks": "catalog:cli",
     "skills-npm": "catalog:agentic",

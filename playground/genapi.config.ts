@@ -1,10 +1,17 @@
 import { defineConfig } from '@genapi/core'
-import pipeline, { compiler, config, dest, generate } from '@genapi/pipeline'
-import { parser } from '@genapi/presets/swag-ofetch-ts'
+import pipeline from '@genapi/pipeline'
+import { fetch } from '@genapi/presets'
 import { original } from 'dsh-h3/genapi'
 
 export default defineConfig({
-  preset: pipeline(config, original, parser, compiler, generate, dest),
+  preset: pipeline(
+    fetch.ts.config,
+    original,
+    fetch.ts.parser,
+    fetch.ts.compiler,
+    fetch.ts.generate,
+    fetch.ts.dest,
+  ),
   input: './src/host/server/index.ts',
   output: {
     main: 'src/client/apis/index.ts',
