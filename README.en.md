@@ -200,7 +200,7 @@ pnpm exec genapi
   * Static string paths and `exact`/`prefix` object paths are supported (a `prefix` generates the root endpoint; child paths are not enumerated).
   * `'/api/users/:id'` generates a required path parameter; `:id` inside an object descriptor is treated as a literal.
   * Query/Body types are inferred automatically from `getQuery<Query>(event)` or `readBody<Body>(event)`.
-* **Naming**: function names are derived from the path and HTTP method (for example, `/api/health` -> `getApiHealth`). Use `patch.operations` to customize the name.
+* **Naming**: function names and generated type names are derived from the path and HTTP method (for example, `/api/health` -> `getApiHealth`, `GetApiHealthResponse`). Use `patch.operations` to customize the function name.
 * **Not supported**: dynamic conditions, loops, mounted sub-apps, wildcards, complex regex patterns, native Node callbacks, recursive types, and non-JSON contracts (unsupported syntax reports the exact source location).
 
 ---

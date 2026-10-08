@@ -3,10 +3,54 @@ import { basename, dirname, resolve } from 'node:path'
 import ts from 'typescript'
 
 const methods = new Set(['get', 'head', 'post', 'put', 'patch', 'delete', 'options'])
+const splitter = /[-_/.]/
+const digit = /\d/
 const diagnosticHost: ts.FormatDiagnosticsHost = {
   getCurrentDirectory: ts.sys.getCurrentDirectory,
   getCanonicalFileName: name => name,
   getNewLine: () => '\n',
+}
+
+/** Splits a name on separators and acronym boundaries, the way GenAPI's pascal-case does. */
+function words(value: string): string[] {
+  const parts: string[] = []
+  let part = ''
+  let upper: boolean | undefined
+  let previous = true
+  for (const char of value) {
+    if (splitter.test(char)) {
+      parts.push(part)
+      part = ''
+      upper = undefined
+      previous = true
+      continue
+    }
+    const isUpper = digit.test(char) ? undefined : char !== char.toLowerCase()
+    const startsWord = !previous && upper === false && isUpper === true
+    const endsAcronym = !previous && upper === true && isUpper === false && part.length > 1
+    if (startsWord || endsAcronym) {
+      parts.push(startsWord ? part : part.slice(0, -1))
+      part = startsWord ? '' : part[part.length - 1]
+    }
+    part += char
+    upper = isUpper
+    previous = false
+  }
+  parts.push(part)
+  return parts
+}
+
+function pascal(value: string): string {
+  return words(value).map(part => part.replace(/^./, char => char.toUpperCase())).join('')
+}
+
+/**
+ * Definition names are referenced through `$ref`, and GenAPI re-derives the referenced type with
+ * `varName` from `@genapi/parser`: pascal-case, drop non-alphanumerics, pascal-case again. Names
+ * are built through that same normalisation so the declared type and the referenced one agree.
+ */
+function typeName(...parts: string[]): string {
+  return pascal(pascal(parts.filter(Boolean).join('/')).replace(/[^\dA-Z]+/gi, ''))
 }
 
 export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.ConfigRead {
@@ -36,7 +80,7 @@ export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.Config
   if (!typeScope)
     throw new TypeError('dsh-h3/genapi: a TypeScript type output is required')
   const paths: Record<string, Record<string, unknown>> = {}
-  let count = 0
+  const declared = new Set<string>()
 
   function fail(node: ts.Node, message: string): never {
     const source = node.getSourceFile()
@@ -124,8 +168,15 @@ export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.Config
     }).join(', ')}]`
   }
 
+  function declare(node: ts.Node, name: string): string {
+    if (declared.has(name))
+      return fail(node, `generated type name ${name} is already used; make the route paths distinguishable`)
+    declared.add(name)
+    return name
+  }
+
   function alias(name: string, type: ts.Type, node: ts.Node): { $ref: string } {
-    typeScope.typings.push({ name, value: typeValue(type, node), export: true })
+    typeScope.typings.push({ name: declare(node, name), value: typeValue(type, node), export: true })
     return { $ref: `#/definitions/${name}` }
   }
 
@@ -197,13 +248,13 @@ export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.Config
     paths[path] ??= {}
     if (paths[path][method])
       return fail(call, `duplicate ${method.toUpperCase()} ${path}`)
-    const name = `Dsh${method[0].toUpperCase()}${method.slice(1)}${count++}`
+    const name = typeName(method, path)
     const fn = handlerOf(handler)
     const signature = checker.getTypeAtLocation(handler).getCallSignatures()[0]
     if (!signature)
       return fail(handler, 'handler must be callable')
     const response = checker.getReturnTypeOfSignature(signature)
-    const schema = alias(`${name}Response`, checker.getAwaitedType(response) ?? response, handler)
+    const schema = alias(typeName(name, 'response'), checker.getAwaitedType(response) ?? response, handler)
     const reads = new Set<string>()
     function requestOf(node: ts.CallExpression, kind: string): void {
       if (reads.has(kind))
@@ -216,7 +267,7 @@ export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.Config
       const type = checker.getNonNullableType(checker.getAwaitedType(inferred) ?? inferred)
       if (kind === 'getQuery') {
         for (const field of checker.getPropertiesOfType(type)) {
-          const ref = alias(`${name}Query${parameters.length}`, checker.getTypeOfSymbolAtLocation(field, node), node)
+          const ref = alias(typeName(name, 'query', field.getName()), checker.getTypeOfSymbolAtLocation(field, node), node)
           parameters.push({ ...ref, name: field.getName(), in: 'query', required: !(field.flags & ts.SymbolFlags.Optional) })
         }
         return
@@ -224,8 +275,9 @@ export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.Config
       if (!(type.flags & ts.TypeFlags.Object) || checker.isArrayType(type) || checker.isTupleType(type) || checker.getIndexTypeOfType(type, ts.IndexKind.String))
         return fail(node, 'readBody requires an object contract with named fields')
       const properties = checker.getPropertiesOfType(type).map(field => ({ name: field.getName(), type: typeValue(checker.getTypeOfSymbolAtLocation(field, node), node), required: !(field.flags & ts.SymbolFlags.Optional) }))
-      typeScope.interfaces.push({ name: `${name}Body`, properties, export: true })
-      parameters.push({ name: 'body', in: 'body', required: true, schema: { $ref: `#/definitions/${name}Body` } })
+      const body = declare(node, typeName(name, 'body'))
+      typeScope.interfaces.push({ name: body, properties, export: true })
+      parameters.push({ name: 'body', in: 'body', required: true, schema: { $ref: `#/definitions/${body}` } })
     }
     function visit(node: ts.Node): void {
       if (ts.isFunctionLike(node) && node !== fn)
@@ -320,7 +372,7 @@ export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.Config
     }
   }
   scan(file)
-  if (!count)
+  if (!Object.keys(paths).length)
     throw new TypeError('dsh-h3/genapi: no static defineWebServer routes found in input')
   configRead.source = { swagger: '2.0', info: { title: basename(entry, '.ts'), version: '0.0.0' }, paths, definitions: {} }
   return configRead

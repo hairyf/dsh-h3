@@ -204,7 +204,7 @@ pnpm exec genapi
   * `'/api/users/:id'` 会生成必填路径参数；对象描述符中的 `:id` 将按字面量处理。
   * 通过 `getQuery<Query>(event)` 或 `readBody<Body>(event)` 自动推导 Query/Body 类型。
 
-* **命名规范**：函数名由路径与 HTTP 方法合成（如 `/api/health` -> `getApiHealth`）；若需自定义名称，可配合 `patch.operations` 使用。
+* **命名规范**：函数名与生成的类型名均由路径与 HTTP 方法合成（如 `/api/health` -> `getApiHealth`、`GetApiHealthResponse`）；若需自定义函数名，可配合 `patch.operations` 使用。
 * **暂不支持**：动态条件、循环、子应用挂载、通配符、复杂正则模式、原生的 Node 回调、递归类型及非 JSON 契约（解析遇到不支持的语法时将打印准确的源码位置）。
 
 ---

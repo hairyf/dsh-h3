@@ -144,22 +144,23 @@ Types come from, in order of precedence:
 
 - Each property becomes a **query** parameter. Optional properties
   (`field?`) are not `required`; the rest are required.
-- Each field's type is registered as a reusable definition (for example
-  `DshGet0Query0`).
+- Each field's type is registered as a reusable definition named after the
+  route and the field (for example `GetApiEchochannelQueryPretty`).
 
 `readBody`:
 
 - The body contract must be an **object with named fields**: arrays, tuples,
   primitives, and string-index signatures throw
   `readBody requires an object contract with named fields`.
-- An interface named `<Name>Body` is emitted, and a single required `body`
-  parameter references it.
+- An interface named `<Route>Body` is emitted (for example
+  `PostApiEchochannelBody`), and a single required `body` parameter references
+  it.
 
 ## Response contracts
 
 The response type comes from the handler's return type via
 `getReturnTypeOfSignature`, unwrapped with `getAwaitedType`, and registered as
-`<Name>Response`.
+`<Route>Response` (for example `PostApiEchochannelResponse`).
 
 - Because only the request generic is typed, a handler declared with
   `defineEventHandler<{ body: T }>` returns `unknown`. To keep a typed response
@@ -171,10 +172,20 @@ The response type comes from the handler's return type via
 
 ## Naming
 
-- Every route gets an internal id `Dsh<Method><index>`, where `<index>` is a
-  global counter across the whole file (so ids are not stable when routes are
-  added or reordered). This id prefixes the generated `...Response`,
-  `...Body`, and `...Query<n>` names.
+- Definition names are derived from the route's **method and path**, so they stay
+  stable when other routes are added or reordered. `GET /api/health` yields
+  `GetApiHealthResponse`; `POST /api/echo/:channel` yields
+  `PostApiEchochannelResponse` and `PostApiEchochannelBody`; a query field
+  appends `Query<Field>`, giving `GetApiEchochannelQueryPretty` for `pretty`.
+- Names are normalised exactly the way GenAPI re-derives a `$ref` target: split
+  on `-`, `_`, `/`, `.` and on case changes, upper-case the first letter of each
+  word, drop everything that is not an ASCII letter or digit, and upper-case the
+  first letter of the remaining words again. That second pass is why a `:channel`
+  parameter glues to the segment before it (`GetApiEchochannel`, not
+  `GetApiEchoChannel`).
+- Two routes whose method and path normalise to the same name (for example
+  `/api/user-list` and `/api/user/list`) throw
+  `generated type name <name> is already used; make the route paths distinguishable`.
 - The **client function names** are produced later by the pipeline from the path
   and method (for example `/api/health` + `GET` -> `getApiHealth`). Use
   `patch.operations` to override a name.

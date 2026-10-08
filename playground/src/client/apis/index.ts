@@ -11,7 +11,7 @@ export async function getApiHealth(config?: RequestInit) {
   const response = await fetch("/api/health", {
     ...config,
   });
-  return response.json() as Promise<Types.DshGet0Response>;
+  return response.json() as Promise<Types.GetApiHealthResponse>;
 }
 
 /** @method get */
@@ -19,7 +19,7 @@ export async function getApiServer(config?: RequestInit) {
   const response = await fetch("/api/server", {
     ...config,
   });
-  return response.json() as Promise<Types.DshGet1Response>;
+  return response.json() as Promise<Types.GetApiServerResponse>;
 }
 
 /** @method get */
@@ -27,7 +27,7 @@ export async function getApiInspect(config?: RequestInit) {
   const response = await fetch("/api/inspect", {
     ...config,
   });
-  return response.json() as Promise<Types.DshGet2Response>;
+  return response.json() as Promise<Types.GetApiInspectResponse>;
 }
 
 /** @method get */
@@ -36,11 +36,11 @@ export async function getApiEchoChannel(paths: Types.GetApiEchochannelPath, quer
   const response = await fetch(`/api/echo/${paths.channel}?${querystr}`, {
     ...config,
   });
-  return response.json() as Promise<Types.DshGet3Response>;
+  return response.json() as Promise<Types.GetApiEchochannelResponse>;
 }
 
 /** @method post */
-export async function postApiEchoChannel(paths: Types.PostApiEchochannelPath, body: Types.DshPost4Body, query?: Types.PostApiEchochannelQuery, config?: RequestInit) {
+export async function postApiEchoChannel(paths: Types.PostApiEchochannelPath, body: Types.PostApiEchochannelBody, query?: Types.PostApiEchochannelQuery, config?: RequestInit) {
   const querystr = new URLSearchParams(Object.entries(query || {}));
   const response = await fetch(`/api/echo/${paths.channel}?${querystr}`, {
     headers: { "Content-Type": "application/json" },
@@ -48,5 +48,5 @@ export async function postApiEchoChannel(paths: Types.PostApiEchochannelPath, bo
     body: JSON.stringify(body),
     ...config,
   });
-  return response.json() as Promise<Types.DshPost4Response>;
+  return response.json() as Promise<Types.PostApiEchochannelResponse>;
 }
