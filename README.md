@@ -52,11 +52,14 @@ import { defineWebServer } from 'dsh-h3'
 // src/host/server/index.ts
 import { defineEventHandler } from 'h3'
 import { health } from './routes/health'
+import { version } from './routes/version'
+import { inspect } from './routes/inspect'
 
 export const server = defineWebServer((app) => {
   app.get('/api/health', health)
-  app.get({ kind: 'exact', path: '/api/version' }, defineEventHandler(() => ({ version: '1.0.0' })))
-  app.get({ kind: 'prefix', path: '/api/inspect' }, defineEventHandler(event => ({ path: event.url.pathname })))
+  // or
+  app.get({ kind: 'exact', path: '/api/version' }, version)
+  app.get({ kind: 'prefix', path: '/api/inspect' }, inspect)
 })
 ```
 
@@ -96,9 +99,9 @@ export const server = defineWebServer<Options>(app => app.get('/api/status', sta
 ```
 
 ```ts
+// src/host/server/routes/status.ts
 import type { Options } from '../index'
 import { getServerContext, getServerOptions } from 'dsh-h3/utils'
-// src/host/server/routes/status.ts
 import { defineEventHandler } from 'h3'
 
 export const status = defineEventHandler((event) => {
