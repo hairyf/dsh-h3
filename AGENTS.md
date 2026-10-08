@@ -4,4 +4,6 @@
   real invariants - layer boundaries, wire contracts, output shapes - not house style.
 - Before a PR, all gates MUST pass:
   `pnpm lint && pnpm knip && pnpm test && pnpm typecheck && pnpm build`.
+  Coverage for `src/**` MUST stay at or above the thresholds in `vitest.config.ts`;
+  `pnpm coverage` enforces them.
   Commits follow Conventional Commits.

@@ -4,6 +4,7 @@
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
 [![JSDocs][jsdocs-src]][jsdocs-href]
+[![coverage][coverage-src]][coverage-href]
 [![License][license-src]][license-href]
 
 ⚡️ **dsh-h3** 仅适用于插件作者，为 DeepSeek Harness 插件提供 [h3](https://github.com/h3js/h3) 路由服务，通过 Cordis 管理注册与卸载。
@@ -280,6 +281,7 @@ pnpm knip        # 冗余代码/依赖检查
 pnpm test --run  # 执行单元与集成测试
 pnpm typecheck   # TypeScript 类型检查
 pnpm build       # 项目构建
+pnpm coverage    # 执行测试、生成覆盖率报告并校验 90% 阈值
 ```
 
 ---
@@ -300,3 +302,5 @@ MIT
 [license-href]: https://github.com/hairyf/dsh-h3/blob/main/LICENSE
 [jsdocs-src]: https://img.shields.io/badge/jsdocs-reference-080f12?style=flat&colorA=080f12&colorB=1fa669
 [jsdocs-href]: https://www.jsdocs.io/package/dsh-h3
+[coverage-src]: https://codecov.io/gh/hairyf/dsh-h3/graph/badge.svg
+[coverage-href]: https://codecov.io/gh/hairyf/dsh-h3

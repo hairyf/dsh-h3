@@ -4,6 +4,7 @@
 [![npm downloads][npm-downloads-src]][npm-downloads-href]
 [![bundle][bundle-src]][bundle-href]
 [![JSDocs][jsdocs-src]][jsdocs-href]
+[![coverage][coverage-src]][coverage-href]
 [![License][license-src]][license-href]
 
 ⚡️ **dsh-h3** is for plugin authors only: it provides [h3](https://github.com/h3js/h3) route services for DeepSeek Harness plugins, with registration and disposal managed by Cordis.
@@ -275,6 +276,7 @@ pnpm knip        # unused code/dependency check
 pnpm test --run  # run unit and integration tests
 pnpm typecheck   # TypeScript type check
 pnpm build       # build the project
+pnpm coverage    # run tests, emit coverage reports and enforce the 90% thresholds
 ```
 
 ---
@@ -293,5 +295,7 @@ MIT
 [bundle-href]: https://bundlephobia.com/result?p=dsh-h3
 [jsdocs-src]: https://img.shields.io/badge/jsdocs-reference-080f12?style=flat&colorA=080f12&colorB=1fa669
 [jsdocs-href]: https://www.jsdocs.io/package/dsh-h3
+[coverage-src]: https://codecov.io/gh/hairyf/dsh-h3/graph/badge.svg
+[coverage-href]: https://codecov.io/gh/hairyf/dsh-h3
 [license-src]: https://img.shields.io/github/license/hairyf/dsh-h3.svg?style=flat&colorA=080f12&colorB=1fa669
 [license-href]: https://github.com/hairyf/dsh-h3/blob/main/LICENSE
