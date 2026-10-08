@@ -1,7 +1,7 @@
 {
   "name": "dsh-h3",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "packageManager": "pnpm@12.8.1",
   "description": "H3 route services for the DeepSeek Harness WebServer and Cordis lifecycle",
   "author": "Anthony Fu <anthonyfu117@hotmail.com>",
