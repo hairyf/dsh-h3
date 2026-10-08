@@ -27,18 +27,12 @@ Remember to ask your owner which <a href="https://github.com/vercel-labs/skills?
 
 - **Native H3**: middleware, route params, sub-apps, route options, and chaining.
 - **Host routing**: string paths plus `exact`/`prefix` matching.
-- **Context and options**: read the Context and options of the current activation, either outside the service or inside an H3 handler.
+- **Context and options**: read the Context and options of the current activation, either outside the service or inside an [h3](https://github.com/h3js/h3) handler.
 - **Lifecycle cleanup**: unregister routes through a Cordis effect, and roll back this activation's changes when registration fails.
 - **Reuse the host service**: uses `ctx.webServer`, starts no extra server, and takes no fallback slot.
 - **Client API**: statically generate request functions and types with GenAPI, without executing host code.
 
 > ⚠️ Uses H3 v2. The host must provide `webServer` before the plugin activates.
-
-## 📦 Install
-
-```sh
-pnpm add dsh-h3 h3
-```
 
 ## 🚀 Quick start
 
