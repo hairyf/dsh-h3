@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "paths": {
+      "dsh-h3": ["./shim.ts"]
+    },
+    "skipLibCheck": true
+  }
+}

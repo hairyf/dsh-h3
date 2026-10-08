@@ -26,6 +26,7 @@
   ],
   "scripts": {
     "build": "tsdown",
+    "coverage": "pnpm run build && pnpm --filter dsh-plugin-playground build && vitest run --coverage",
     "dev": "tsdown --watch",
     "knip": "knip",
     "lint": "eslint --cache",
@@ -39,6 +40,7 @@
   },
   "scripts-info": {
     "build": "Build the library for publishing",
+    "coverage": "Run the test suite and collect coverage reports",
     "dev": "Rebuild on change during development",
     "knip": "Find unused files, exports and dependencies",
     "lint": "Check for code style issues",
@@ -78,6 +80,7 @@
     "@genapi/presets": "catalog:",
     "@genapi/shared": "catalog:",
     "@types/node": "catalog:types",
+    "@vitest/coverage-v8": "catalog:testing",
     "bumpp": "catalog:cli",
     "eslint": "catalog:cli",
     "eslint-plugin-slop": "catalog:cli",
