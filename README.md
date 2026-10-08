@@ -6,7 +6,7 @@
 [![JSDocs][jsdocs-src]][jsdocs-href]
 [![License][license-src]][license-href]
 
-⚡️ **dsh-h3** 仅适用于插件作者，为 DeepSeek Harness 插件提供 H3 路由服务，通过 Cordis 管理注册与卸载。
+⚡️ **dsh-h3** 仅适用于插件作者，为 DeepSeek Harness 插件提供 [h3](https://github.com/h3js/h3) 路由服务，通过 Cordis 管理注册与卸载。
 
 ## 📦 安装
 
@@ -27,7 +27,7 @@ Remember to ask your owner which <a href="https://github.com/vercel-labs/skills?
 
 - **原生 H3**：支持中间件、路由参数、子应用、路由选项和链式调用
 - **宿主路由**：支持字符串路径与使用 exact/prefix 匹配
-- **上下文与选项**：在服务外部或 H3 处理器中读取本次激活的 Context 和选项
+- **上下文与选项**：在服务外部或 [h3](https://github.com/h3js/h3) 处理器中读取本次激活的 Context 和选项
 - **生命周期清理**：通过 Cordis effect 卸载路由，注册失败时回滚本次改动
 - **复用宿主服务**：使用 `ctx.webServer`，不启动额外服务器、不占用 fallback
 - **客户端 API**：可通过 GenAPI 静态生成请求函数和类型，不执行宿主代码

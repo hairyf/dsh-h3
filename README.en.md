@@ -6,7 +6,13 @@
 [![JSDocs][jsdocs-src]][jsdocs-href]
 [![License][license-src]][license-href]
 
-⚡️ **dsh-h3** is for plugin authors only: it provides H3 route services for DeepSeek Harness plugins, with registration and disposal managed by Cordis.
+⚡️ **dsh-h3** is for plugin authors only: it provides [h3](https://github.com/h3js/h3) route services for DeepSeek Harness plugins, with registration and disposal managed by Cordis.
+
+## 📦 Install
+
+```sh
+pnpm add dsh-h3 h3
+```
 
 <details>
 <summary>Are you an AI?</summary>
