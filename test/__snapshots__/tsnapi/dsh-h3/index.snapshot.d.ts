@@ -30,7 +30,7 @@ export type HostService<Options = undefined> = (undefined extends Options ? (ctx
 // #endregion
 
 // #region Functions
-export declare function defineHostService<Options = undefined>(_: (_: HostApp) => void | HostApp): HostService<Options>;
+export declare function defineWebServer<Options = undefined>(_: (_: HostApp) => void | HostApp): HostService<Options>;
 // #endregion
 
 // #region Referenced (internal)

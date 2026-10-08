@@ -245,7 +245,7 @@ export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.Config
   function collect(node: ts.CallExpression): void {
     const setup = valueOf(node.arguments[0])
     if (!(ts.isArrowFunction(setup) || ts.isFunctionExpression(setup) || ts.isFunctionDeclaration(setup)) || !setup.body || !setup.parameters[0] || !ts.isIdentifier(setup.parameters[0].name))
-      return fail(node, 'defineHostService requires a static setup callback with an app parameter')
+      return fail(node, 'defineWebServer requires a static setup callback with an app parameter')
     const app = checker.getSymbolAtLocation(setup.parameters[0].name)
     function isApp(expression: ts.Expression): boolean {
       return ts.isIdentifier(expression) ? checker.getSymbolAtLocation(expression) === app : ts.isCallExpression(expression) && ts.isPropertyAccessExpression(expression.expression) && isApp(expression.expression.expression)
@@ -306,7 +306,7 @@ export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.Config
   function scan(node: ts.Node): void {
     if (ts.isFunctionLike(node))
       return
-    if (ts.isCallExpression(node) && nameOf(node.expression) === 'defineHostService') {
+    if (ts.isCallExpression(node) && nameOf(node.expression) === 'defineWebServer') {
       let parent = node.parent
       while (ts.isParenthesizedExpression(parent) || ts.isAsExpression(parent) || ts.isSatisfiesExpression(parent))
         parent = parent.parent
@@ -321,7 +321,7 @@ export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.Config
   }
   scan(file)
   if (!count)
-    throw new TypeError('dsh-h3/genapi: no static defineHostService routes found in input')
+    throw new TypeError('dsh-h3/genapi: no static defineWebServer routes found in input')
   const http = configRead.config.meta?.import?.http ?? 'ofetch'
   const main = configRead.graphs.scopes.main
   if (main && !main.imports.some(item => item.names?.includes('ofetch'))) {

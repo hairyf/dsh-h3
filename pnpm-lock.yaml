@@ -364,10 +364,22 @@ importers:
       h3:
         specifier: 'catalog:'
         version: 2.0.1(crossws@0.4.12(srvx@0.12.7))
+      ofetch:
+        specifier: 'catalog:'
+        version: 1.5.1
     devDependencies:
       '@deepseek-ai/dsh-host-webserver':
         specifier: 'catalog:'
         version: 0.2.0-rc.2(@deepseek-ai/cordis@4.0.4)
+      '@genapi/core':
+        specifier: 'catalog:'
+        version: 4.1.4
+      '@genapi/pipeline':
+        specifier: 'catalog:'
+        version: 4.1.4
+      '@genapi/presets':
+        specifier: 'catalog:'
+        version: 4.1.4
       '@types/node':
         specifier: catalog:types
         version: 26.6.3

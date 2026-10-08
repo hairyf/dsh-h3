@@ -44,14 +44,14 @@ export interface HostApp extends H3 {
   query: RouteRegistrar<this>
 }
 
-export function defineHostService<Options = undefined>(setup: (app: HostApp) => void | HostApp): HostService<Options> {
+export function defineWebServer<Options = undefined>(setup: (app: HostApp) => void | HostApp): HostService<Options> {
   if (typeof setup !== 'function')
-    throw new TypeError('dsh-h3: defineHostService requires a setup callback')
+    throw new TypeError('dsh-h3: defineWebServer requires a setup callback')
 
-  const service = function (ctx: Context, options?: Options): () => void {
+  const server = function (ctx: Context, options?: Options): () => void {
     const webServer = ctx?.webServer
     if (typeof webServer?.register !== 'function')
-      throw new TypeError('dsh-h3: service(ctx) requires the webServer service')
+      throw new TypeError('dsh-h3: server(ctx) requires the webServer service')
 
     const instance = { context: ctx, options: options as Options }
     const app = new H3() as HostApp
@@ -90,8 +90,8 @@ export function defineHostService<Options = undefined>(setup: (app: HostApp) => 
     const dispose = (): void => {
       for (const unregister of disposers.splice(0).reverse())
         unregister()
-      if (service.__instance === instance)
-        delete service.__instance
+      if (server.__instance === instance)
+        delete server.__instance
     }
 
     try {
@@ -134,10 +134,10 @@ export function defineHostService<Options = undefined>(setup: (app: HostApp) => 
       dispose()
       throw error
     }
-    service.__instance = instance
+    server.__instance = instance
     return dispose
   } as HostService<Options>
-  return service
+  return server
 }
 
 function toHandler<RequestT extends EventHandlerRequest>(handler: HTTPHandler<RequestT> | WebRoute['handler']): HTTPHandler<RequestT> {

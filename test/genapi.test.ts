@@ -12,6 +12,7 @@ import { original } from 'dsh-h3/genapi'
 import { ofetch } from 'ofetch'
 import ts from 'typescript'
 import { afterEach, expect, it } from 'vitest'
+import basicConfig from '../examples/basic/genapi.config'
 
 const temp = fileURLToPath(new URL('../temp', import.meta.url))
 const roots: string[] = []
@@ -51,27 +52,37 @@ function diagnostics(files: string[]): string[] {
   return ts.getPreEmitDiagnostics(program).map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
 }
 
-it('generates typechecked client files from the basic service entry', async () => {
+it('regenerates the checked-in basic clients using its actual configuration', async () => {
   const { root, settings } = fixture({})
-  settings.input = fileURLToPath(new URL('../examples/basic/src/service/index.ts', import.meta.url))
-  await run(settings)
+  if (typeof basicConfig.preset !== 'function')
+    throw new TypeError('The basic example must configure a pipeline')
+  await basicConfig.preset({
+    ...basicConfig,
+    input: fileURLToPath(new URL(`../examples/basic/${basicConfig.input}`, import.meta.url)),
+    output: settings.output,
+  })
   const main = readFileSync(join(root, 'client/apis/index.ts'), 'utf8')
   const types = readFileSync(join(root, 'client/apis/index.type.ts'), 'utf8')
-  expect(main).toContain('export function getApiH3BasicHealth(options?: FetchOptions)')
-  expect(main).toContain('export function getApiH3BasicServer(options?: FetchOptions)')
-  expect(main).toContain('export function getApiH3BasicInspect(options?: FetchOptions)')
+  expect(main).toContain('export function getApiHealth(options?: FetchOptions)')
+  expect(main).toContain('export function getApiServer(options?: FetchOptions)')
+  expect(main).toContain('export function getApiInspect(options?: FetchOptions)')
   expect(main).not.toContain('dsh-h3')
   expect(types).toContain('status: string; uptimeMs: number')
   expect(types).toContain('port: number')
+  for (const file of ['index.ts', 'index.type.ts']) {
+    const generated = readFileSync(join(root, 'client/apis', file), 'utf8').replace(/\r\n/g, '\n')
+    const committed = readFileSync(new URL(`../examples/basic/src/client/apis/${file}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+    expect(generated).toBe(committed)
+  }
   expect(diagnostics([join(root, 'client/apis/index.ts')])).toEqual([])
 })
 
 it('uses actual registrations, preserves named contracts and calls the host with generated clients', async () => {
   const { root, settings } = fixture({
-    'host/routes/index.ts': `import { defineHostService as serviceOf } from 'dsh-h3'
+    'host/routes/index.ts': `import { defineWebServer as serverOf } from 'dsh-h3'
 import echo from './echo'
-const unusedFactory = () => serviceOf(app => app.get('/api/ghost', echo))
-export const service = serviceOf((app) => {
+const unusedFactory = () => serverOf(app => app.get('/api/ghost', echo))
+export const server = serverOf((app) => {
   return app.on('POST', { kind: 'exact', path: '/api/echo/:literal' }, echo).post('/api/echo/:id', echo)
   app.get('/api/never', echo)
 })`,
@@ -108,7 +119,7 @@ export default handler(async (event): Promise<Result> => {
   const ctx = new Context()
   try {
     await ctx.plugin(WebServer, { host: '127.0.0.1', port: 0 })
-    ctx.effect(() => host.service(ctx), 'genapi:routes')
+    ctx.effect(() => host.server(ctx), 'genapi:routes')
     const baseURL = `http://127.0.0.1:${ctx.webServer.port}`
     const http = ofetch.create({ baseURL })
     expect(await http('/api/echo/client', { method: 'POST', query: { mode: 'full' }, body: { name: 'Bob' } })).toEqual({ kind: 'ok', name: 'Bob', id: 'client' })
@@ -127,7 +138,7 @@ it('rejects dynamic registrations, duplicates and unsupported contracts instead 
     [`app.get('/api/**', handler)`, 'simple :parameter'],
     [`app.get('/api/health', handler); const later = app.get('/api/hidden', handler)`, 'direct app.method'],
   ]) {
-    const { settings } = fixture({ 'host/routes/index.ts': `import { defineHostService } from 'dsh-h3'; import { defineEventHandler } from 'h3'; const handler = defineEventHandler(() => ({ ok: true })); export const service = defineHostService((app) => { ${body} })` })
+    const { settings } = fixture({ 'host/routes/index.ts': `import { defineWebServer } from 'dsh-h3'; import { defineEventHandler } from 'h3'; const handler = defineEventHandler(() => ({ ok: true })); export const server = defineWebServer((app) => { ${body} })` })
     expect(() => original(config(settings))).toThrow(expected)
   }
   const missing = fixture({}).settings

@@ -16,6 +16,7 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
+    "genapi": "genapi",
     "typecheck": "tsc"
   },
   "peerDependencies": {
@@ -24,10 +25,14 @@
   },
   "dependencies": {
     "dsh-h3": "workspace:*",
-    "h3": "catalog:"
+    "h3": "catalog:",
+    "ofetch": "catalog:"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-host-webserver": "catalog:",
+    "@genapi/core": "catalog:",
+    "@genapi/pipeline": "catalog:",
+    "@genapi/presets": "catalog:",
     "@types/node": "catalog:types",
     "tsdown": "catalog:cli",
     "typescript": "catalog:cli"

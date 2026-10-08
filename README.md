@@ -1,111 +1,149 @@
 # dsh-h3
 
-[![npm 版本][npm-version-src]][npm-version-href]
-[![npm 下载量][npm-downloads-src]][npm-downloads-href]
-[![许可证][license-src]][license-href]
+[![npm version][npm-version-src]][npm-version-href]
+[![npm downloads][npm-downloads-src]][npm-downloads-href]
+[![bundle][bundle-src]][bundle-href]
+[![JSDocs][jsdocs-src]][jsdocs-href]
+[![License][license-src]][license-href]
 
 为 DeepSeek Harness 插件提供 H3 路由服务，通过 Cordis 管理注册与卸载。
 
 ## 特性
 
 - **原生 H3**：支持中间件、路由参数、子应用、路由选项和链式调用
-- **宿主路由**：支持字符串路径与 `Omit<WebRoute, 'handler'>`，使用 exact/prefix 匹配
+- **宿主路由**：支持字符串路径与使用 exact/prefix 匹配
 - **上下文与选项**：在服务外部或 H3 处理器中读取本次激活的 Context 和选项
-- **客户端 API**：通过 GenAPI 静态生成请求函数和类型，不执行宿主代码
 - **生命周期清理**：通过 Cordis effect 卸载路由，注册失败时回滚本次改动
-- **复用宿主服务**：使用 `ctx.webServer`，保留 gzip，不启动额外服务器、不占用 fallback
+- **复用宿主服务**：使用 `ctx.webServer`，不启动额外服务器、不占用 fallback
+- **客户端 API**：可通过 GenAPI 静态生成请求函数和类型，不执行宿主代码
 
-> 使用 H3 v2。插件激活前，宿主必须提供 `webServer`。
+> ⚠️ 使用 H3 v2。插件激活前，宿主必须提供 `webServer`。
 
-## 导出入口
+## 📦 导出入口
 
-| 入口 | 导出 | 用途 |
-| --- | --- | --- |
-| `dsh-h3` | `defineHostService`、`HostApp`、`HostRoute`、`HostService`、`HostServiceInstance` | 定义宿主路由服务及其类型 |
-| `dsh-h3/utils` | `getSeviceContext`、`getSeviceOptions` | 从服务或 H3 事件读取激活数据 |
-| `dsh-h3/genapi` | `original` | 接入 GenAPI pipeline，生成客户端 API |
+| 入口路径 | 导出内容 | 核心用途 |
+| :--- | :--- | :--- |
+| `dsh-h3` | `defineWebServer`, `HostApp`, `HostRoute`, `HostService`, `HostServiceInstance` | 定义宿主路由服务及其类型 |
+| `dsh-h3/utils` | `getServerContext`, `getServerOptions` | 从服务实例或 H3 事件中读取激活数据 |
+| `dsh-h3/genapi` | `original` | 接入 GenAPI Pipeline，生成客户端 API |
 
-> 工具函数名中的 `Sevice` 为当前公开 API 的拼写。TypeScript 和 GenAPI 仅用于代码生成；不使用该入口时，宿主插件无需安装它们。
+> 💡 **说明**：TypeScript 和 GenAPI 仅用于静态代码生成；若不使用该功能，宿主插件无需额外安装。
 
-## 安装
+## 🚀 安装
 
 ```sh
-pnpm add dsh-h3 h3@^2 @deepseek-ai/cordis @deepseek-ai/dsh-host-webserver
+pnpm add dsh-h3 h3 @deepseek-ai/cordis @deepseek-ai/dsh-host-webserver
 ```
 
-## 用法
+## 📖 使用指南
 
-定义路由服务，在插件的 `apply` 中激活：
+### 1. 定义与激活路由服务
+
+定义路由服务并在插件的 `apply` 函数中激活：
 
 ```ts
-import type { Context } from '@deepseek-ai/cordis'
-import { defineHostService } from 'dsh-h3'
+// src/host/server/routes/health.ts
 import { defineEventHandler } from 'h3'
 
-const health = defineEventHandler(() => ({ status: 'ok' }))
+export const health = defineEventHandler(() => ({ status: 'ok' }))
+```
 
-const service = defineHostService((app) => {
+```ts
+import { defineWebServer } from 'dsh-h3'
+// src/host/server/index.ts
+import { defineEventHandler } from 'h3'
+import { health } from './routes/health'
+
+export const server = defineWebServer((app) => {
   app.get('/api/health', health)
   app.get({ kind: 'exact', path: '/api/version' }, defineEventHandler(() => ({ version: '1.0.0' })))
   app.get({ kind: 'prefix', path: '/api/inspect' }, defineEventHandler(event => ({
     path: event.url.pathname,
   })))
 })
+```
+
+```ts
+// src/host/apply.ts
+import type { Context } from '@deepseek-ai/cordis'
+import { server } from './server'
 
 export const inject = ['webServer']
 
 export function apply(ctx: Context): void {
-  ctx.effect(() => service(ctx), 'custom-label')
+  ctx.effect(() => server(ctx), 'custom-label')
 }
 ```
 
-`defineEventHandler` 等 H3 工具直接从 `h3` 导入，`dsh-h3` 不重新导出它们。处理器的返回值由 H3 序列化。
+**注意事项：**
 
-`service(ctx)` 返回卸载函数，也可以手动调用；重复卸载安全。通过 effect 激活时，插件卸载会移除路由。注册失败仅回滚本次激活的路由，不影响已有注册。
+* `defineEventHandler` 等工具请直接从 `h3` 导入，`dsh-h3` 不再二次导出。
+* `server(ctx)` 调用后将返回卸载函数（可手动调用，重复调用安全）。通过 `ctx.effect` 激活时，插件卸载时会自动移除相应路由。
+* 若注册失败，系统仅回滚本次激活的路由，不会影响已存在的路由。
 
-### 读取上下文与选项
+---
 
-选项由 `service(ctx, options)` 的第二个参数传入，可以是插件配置或 `apply` 期间创建的依赖：
+### 2. 读取上下文与配置选项
+
+可以通过 `server(ctx, options)` 的第二个参数注入配置选项或运行时依赖：
 
 ```ts
-import type { Context } from '@deepseek-ai/cordis'
-import { defineHostService } from 'dsh-h3'
-import { getSeviceContext, getSeviceOptions } from 'dsh-h3/utils'
-import { defineEventHandler } from 'h3'
+// src/host/server/index.ts
+import { defineWebServer } from 'dsh-h3'
+import { status } from './routes/status'
 
-interface Options {
+export interface Options {
   startedAt: number
 }
 
-const status = defineEventHandler((event) => {
-  const ctx = getSeviceContext(event)
-  const options = getSeviceOptions<Options>(event)
-  return { port: ctx.webServer.port, uptimeMs: Date.now() - options.startedAt }
-})
+export const server = defineWebServer<Options>(app => app.get('/api/status', status))
+```
 
-const service = defineHostService<Options>(app => app.get('/api/status', status))
+```ts
+import type { Options } from '../index'
+import { getServerContext, getServerOptions } from 'dsh-h3/utils'
+// src/host/server/routes/status.ts
+import { defineEventHandler } from 'h3'
+
+export const status = defineEventHandler((event) => {
+  const ctx = getServerContext(event)
+  const options = getServerOptions<Options>(event)
+
+  return {
+    port: ctx.webServer.port,
+    uptimeMs: Date.now() - options.startedAt,
+  }
+})
+```
+
+```ts
+// src/host/apply.ts
+import type { Context } from '@deepseek-ai/cordis'
+import { getServerContext, getServerOptions } from 'dsh-h3/utils'
+import { server } from './server'
 
 export const inject = ['webServer']
 
 export function apply(ctx: Context): void {
   const options = { startedAt: Date.now() }
-  ctx.effect(() => service(ctx, options), 'status:routes')
+  ctx.effect(() => server(ctx, options), 'status:routes')
 
-  getSeviceContext(service) // Context，与传入的 ctx 是同一对象
-  getSeviceOptions(service) // 推断为 Options，与传入的 options 是同一对象
+  // 在处理器外部读取上下文与选项（仅在服务激活期间有效）
+  getServerContext(server) // 返回已传入的 Context 实例
+  getServerOptions(server) // 自动推断为 Options 类型
 }
 ```
 
-每次激活独立捕获 Context 和选项；同一服务在多个宿主中激活时，事件始终读取自己所属激活的数据，不会被后续激活覆盖。
+> **隔离机制**：每次激活独立捕获 `Context` 与选项。当同一个服务在多个宿主中被多次激活时，事件处理器始终绑定其所属激活的数据，不会被后续激活覆盖。
 
-服务的 `__instance` 指向最近一次成功激活的实例。卸载旧实例不会清除新实例；卸载当前实例会清除该属性，不自动回退到更早的实例。服务尚未激活、当前实例已卸载，或事件不属于本库的服务时，两个工具都会抛出 `TypeError`。
+---
 
-### Node 处理器
+### 3. Node.js 原生 HTTP 处理器
 
-路由也接受直接传入的双参数 Node 回调：
+服务支持直接传入双参数的 Node.js HTTP 回调函数：
 
 ```ts
-const service = defineHostService((app) => {
+const server = defineWebServer((app) => {
   app.get('/api/text', (req, res) => {
     res.setHeader('content-type', 'text/plain; charset=utf-8')
     res.end(req.method)
@@ -113,20 +151,22 @@ const service = defineHostService((app) => {
 })
 ```
 
-Node 处理器负责结束或流式发送响应。自动识别要求两个显式参数；仅声明 `req`、使用默认参数或 rest 参数时，使用 H3 的 `fromNodeHandler` 显式适配。
+> ⚠️ **提示**：自动识别要求必须**显式声明两个参数**（如 `req, res`）。如果仅声明 `req`、使用了默认参数或使用了 Rest 参数（`...args`），请显式使用 H3 的 `fromNodeHandler` 进行包裹。
 
-## 生成客户端 API
+---
 
-`dsh-h3/genapi` 提供 GenAPI 的 `original` 阶段：读取服务入口中的路由注册，静态解析 H3 处理器，再交给现有 parser、compiler 和输出阶段。不加载插件、不执行宿主代码。
+## 🛠️ 生成客户端 API
 
-安装生成工具和客户端请求库：
+`dsh-h3/genapi` 提供了 GenAPI 的 `original` 构建阶段。它通过静态分析服务入口中的路由定义与 H3 处理器，直接构建客户端 API，**过程中无需加载插件或执行宿主代码**。
+
+### 1. 安装开发依赖
 
 ```sh
 pnpm add -D @genapi/core@^4.1.4 @genapi/pipeline@^4.1.4 @genapi/presets@^4.1.4 @genapi/shared@^4.1.4 typescript
 pnpm add ofetch
 ```
 
-在 `genapi.config.ts` 中配置：
+### 2. 配置文件 (`genapi.config.ts`)
 
 ```ts
 import { defineConfig } from '@genapi/core'
@@ -136,7 +176,7 @@ import { original } from 'dsh-h3/genapi'
 
 export default defineConfig({
   preset: pipeline(config, original, parser, compiler, generate, dest),
-  input: './host/routes/index.ts',
+  input: './src/host/server/index.ts',
   output: {
     main: 'src/client/apis/index.ts',
     type: 'src/client/apis/index.type.ts',
@@ -144,58 +184,71 @@ export default defineConfig({
 })
 ```
 
+### 3. 执行代码生成
+
 ```sh
 pnpm exec genapi
 ```
 
-输入必须是直接在模块顶层声明 `defineHostService` 的入口文件，而不是路由目录。生成器复用最近的 tsconfig，通过 TypeScript 解析导入的处理器和类型，按声明的路由生成 API，不按文件名猜测 URL；跳过函数工厂内部的服务声明和提前返回后的不可达注册。
+### 规则与限制
 
-- 支持 `app.get/post/...`、`app.on('POST', ...)` 和链式声明；路径接受静态字符串或 exact/prefix 对象。prefix 生成其根端点，不自动枚举子路径。
-- `'/api/users/:id'` 生成必填路径参数；对象描述符中的 `:id` 仍按字面量处理。
-- `getQuery<Query>(event)` 或 `getQuery(event) as Query` 推导查询字段，`readBody<Body>(event)` 推导对象请求体；返回类型支持推断、导入的类型、可选字段和判别联合。没有具名查询字段时，可通过客户端调用的 `options.params` 传入。
-- 函数名由 GenAPI 的 parser 根据方法和完整路径生成，例如 `/api/health` 对应 `getApiHealth`；需要重命名时使用 `patch.operations`。
-- 条件、循环、子应用挂载、通配符、复杂路径模式、Node 回调、递归类型及非 JSON 契约暂不支持，遇到不支持的声明会报出源文件位置。读取请求参数需直接放在处理器中；不追踪辅助函数内的请求读取。
+* **输入要求**：`input` 文件必须是在模块顶层直接声明 `defineWebServer` 的入口文件（不能是分散的路由目录）。
+* **支持的语法**：
+  * 支持 `app.get/post/...`、`app.on('POST', ...)` 及链式调用。
+  * 支持静态字符串路径和 exact/prefix 对象路径（prefix 会生成根端点，不自动枚举子路径）。
+  * `'/api/users/:id'` 会生成必填路径参数；对象描述符中的 `:id` 将按字面量处理。
+  * 通过 `getQuery<Query>(event)` 或 `readBody<Body>(event)` 自动推导 Query/Body 类型。
 
-生成文件只依赖客户端请求库，不导入宿主模块。默认使用 `ofetch`；可通过 `meta.import.http` 指定同时导出 `ofetch` 和 `FetchOptions` 的客户端模块。客户端选项的 `responseType` 限定为 JSON，以保持返回类型与生成的契约一致。
+* **命名规范**：函数名由路径与 HTTP 方法合成（如 `/api/health` -> `getApiHealth`）；若需自定义名称，可配合 `patch.operations` 使用。
+* **暂不支持**：动态条件、循环、子应用挂载、通配符、复杂正则模式、原生的 Node 回调、递归类型及非 JSON 契约（解析遇到不支持的语法时将打印准确的源码位置）。
 
-## 示例
+此配置使用 `ofetch`，生成的客户端不导入宿主代码。可在调用时通过 `options.baseURL` 指定宿主地址，或在同源客户端省略；`options.query` 可传入未声明具名类型的查询字段。客户端的 `responseType` 限定为 JSON。
 
-[basic](<examples/basic/README.md>) 是完整的宿主插件项目，按服务入口和独立路由文件组织，包含构建配置、真实 Loader patch 和请求示例。
+---
+
+## 💡 示例项目
+
+仓库提供了完整的 [basic 示例](<examples/basic/README.md>)，展示了按服务入口与独立路由文件组织的插件、[GenAPI 配置](<examples/basic/genapi.config.ts>)和[生成的客户端 API](<examples/basic/src/client/apis/index.ts>)，包含真实宿主请求与生成一致性检查。
 
 ```sh
+# 安装与构建示例
 pnpm install
 pnpm build
+pnpm --filter dsh-plugin-h3-basic genapi
 pnpm --filter dsh-plugin-h3-basic build
 
-# 需要安装 dsh CLI；从仓库根目录运行。
+# 运行（需在仓库根目录执行，需提前安装 dsh CLI）
 dsh web --patch ./examples/basic/cordis.patch.yml
+
 ```
 
-## API
+---
 
-### `defineHostService<Options>(setup)`
+## 📚 API 参考
+
+### `defineWebServer<Options>(setup)`
 
 ```ts
-function defineHostService<Options = undefined>(
+function defineWebServer<Options = undefined>(
   setup: (app: HostApp) => void | HostApp,
 ): HostService<Options>
 ```
 
-每次激活创建新的 H3 实例。`setup` 必须同步执行，可以不返回值或返回 app 以支持链式声明。`HostApp` 是增强的 H3，`on`、`all` 和各 HTTP 方法接受字符串或 `HostRoute`、H3/Node 处理器，以及原生路由选项。
+每次激活都会创建一个全新的 H3 实例。`setup` 函数必须同步执行。`HostApp` 是增强版的 H3 App 实例。
 
-返回的服务通过 `service(ctx, options)` 激活，返回卸载函数。未声明选项时沿用 `service(ctx)`；声明了不包含 `undefined` 的选项类型后，第二个参数在类型层面必填。
+### `getServerContext(server | event)`
 
-### `getSeviceContext(service | event)`
+导入自 `dsh-h3/utils`。获取当前激活时传入的 `Context` 对象。
 
-从 `dsh-h3/utils` 导入，返回激活时传入的 `Context`。
+### `getServerOptions<Options>(server | event)`
 
-### `getSeviceOptions<Options>(service | event)`
+导入自 `dsh-h3/utils`。获取当前激活时传入的选项对象。从 `server` 提取时支持自动类型推导；从事件提取时显式传入选项类型。
 
-从 `dsh-h3/utils` 导入，原样返回激活时传入的选项。从 service 读取时自动推断类型；从 event 读取时显式提供选项类型。未传选项的服务返回 `undefined`。
+`server.__instance` 指向最近一次成功激活的实例。卸载旧实例不会清除新实例；卸载当前实例后不回退到更早的实例。服务未激活或事件不属于本库时，这两个工具会抛出 `TypeError`。
 
 ### `original(configRead)`
 
-从 `dsh-h3/genapi` 导入，用在 `config` 与 `parser` 之间，返回填充了路由和类型信息的 GenAPI 配置。实际文件写入仍由 `dest` 完成；配置方式与支持范围见[生成客户端 API](#生成客户端-api)。
+导入自 `dsh-h3/genapi`。用于 GenAPI pipeline 中，负责填充路由与其类型元数据。
 
 ### `HostRoute`
 
@@ -203,42 +256,44 @@ function defineHostService<Options = undefined>(
 type HostRoute = Omit<WebRoute, 'handler'>
 ```
 
-| 声明 | 宿主注册 |
+| 路径声明方式 | 宿主端注册匹配规则 |
 | --- | --- |
-| `'/api/health'` | exact `/api/health` |
-| `'/api/users/:id'` | prefix `/api/users`，由 H3 匹配参数 |
-| `'/api/files/**'` | prefix `/api/files`，由 H3 匹配通配符 |
-| `{ kind: 'exact', path: '/api/version' }` | 字面量 exact `/api/version` |
-| `{ kind: 'prefix', path: '/api/inspect' }` | 匹配 `/api/inspect` 和其子路径，不匹配 `/api/inspection` |
+| `'/api/health'` | 精确匹配（exact） `/api/health` |
+| `'/api/users/:id'` | 前缀匹配（prefix） `/api/users`，具体参数由 H3 解析 |
+| `'/api/files/**'` | 前缀匹配（prefix） `/api/files`，通配符由 H3 解析 |
+| `{ kind: 'exact', path: '/api/version' }` | 字面量精确匹配 `/api/version` |
+| `{ kind: 'prefix', path: '/api/inspect' }` | 匹配 `/api/inspect` 及其所有子路径（不匹配 `/api/inspection`） |
 
-- 对象形式的路径必须是绝对 pathname，不能包含 query、fragment 或尾随斜杠；按字面量处理，不解释为 H3 模式。
-- 相同 `(kind, path)` 的不同方法共用一次宿主注册。宿主先选择 exact，再选择最长 prefix；未支持的方法返回带 `Allow` 的 `405`，GET 支持 HEAD。不会因方法不匹配而落入其他宿主路由。
-- 不支持 `/:id`、`/**` 等根级模式：使用 `/api/:id` 等静态命名空间，避免占用宿主的单一 fallback。挂载子应用时，其根路径不带尾随斜杠，例如 `/api`。
+> 🔐 **安全建议**：身份认证、鉴权以及 Body 大小限制等系统安全职责应由插件自身保障。请务必为敏感路由事先配置好对应的 H3 中间件。
 
-身份认证、授权和请求体大小限制由插件负责。敏感处理器应先配置适当的 H3 中间件。
+---
 
-## 开发
+## 🛠️ 开发与贡献
 
 ```sh
-pnpm install
-pnpm lint
-pnpm knip
-pnpm test --run
-pnpm typecheck
-pnpm build
+pnpm install     # 安装依赖
+pnpm lint        # 代码风格检查
+pnpm knip        # 冗余代码/依赖检查
+pnpm test --run  # 执行单元与集成测试
+pnpm typecheck   # TypeScript 类型检查
+pnpm build       # 项目构建
 ```
 
-测试命令先构建主包和 basic 插件，再验证真实 HTTP 请求、选项与上下文隔离、Cordis 卸载，以及 GenAPI 文件生成、生成代码类型检查和客户端调用。
+---
 
-## 许可证
+## 📜️ 许可证
 
 MIT
 
-<!-- 徽章 -->
+<!-- Badges -->
 
 [npm-version-src]: https://img.shields.io/npm/v/dsh-h3?style=flat&colorA=080f12&colorB=1fa669
-[npm-version-href]: https://www.npmjs.com/package/dsh-h3
+[npm-version-href]: https://npmjs.com/package/dsh-h3
 [npm-downloads-src]: https://img.shields.io/npm/dm/dsh-h3?style=flat&colorA=080f12&colorB=1fa669
-[npm-downloads-href]: https://www.npmjs.com/package/dsh-h3
-[license-src]: https://img.shields.io/badge/license-MIT-1fa669?style=flat&colorA=080f12
-[license-href]: <package.json>
+[npm-downloads-href]: https://npmjs.com/package/dsh-h3
+[bundle-src]: https://img.shields.io/bundlephobia/minzip/dsh-h3?style=flat&colorA=080f12&colorB=1fa669&label=minzip
+[bundle-href]: https://bundlephobia.com/result?p=dsh-h3
+[license-src]: https://img.shields.io/github/license/hairyf/dsh-h3.svg?style=flat&colorA=080f12&colorB=1fa669
+[license-href]: https://github.com/hairyf/dsh-h3/blob/main/LICENSE
+[jsdocs-src]: https://img.shields.io/badge/jsdocs-reference-080f12?style=flat&colorA=080f12&colorB=1fa669
+[jsdocs-href]: https://www.jsdocs.io/package/dsh-h3

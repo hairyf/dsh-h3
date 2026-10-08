@@ -2,11 +2,11 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { H3Event } from 'h3'
 import type { HostService, HostServiceInstance } from './index'
 
-export function getSeviceContext<Options>(source: HostService<Options> | H3Event): Context {
+export function getServerContext<Options>(source: HostService<Options> | H3Event): Context {
   return instanceOf(source).context
 }
 
-export function getSeviceOptions<Options>(source: HostService<Options> | H3Event): Options {
+export function getServerOptions<Options>(source: HostService<Options> | H3Event): Options {
   return instanceOf(source).options
 }
 

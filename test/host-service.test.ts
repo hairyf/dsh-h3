@@ -4,8 +4,8 @@ import { request } from 'node:http'
 import { gunzipSync } from 'node:zlib'
 import { Context } from '@deepseek-ai/cordis'
 import { WebServer } from '@deepseek-ai/dsh-host-webserver'
-import { defineHostService } from 'dsh-h3'
-import { getSeviceContext, getSeviceOptions } from 'dsh-h3/utils'
+import { defineWebServer } from 'dsh-h3'
+import { getServerContext, getServerOptions } from 'dsh-h3/utils'
 import { defineEventHandler, getRouterParam, H3, mockEvent, readBody } from 'h3'
 import { afterAll, afterEach, beforeAll, expect, expectTypeOf, it, vi } from 'vitest'
 
@@ -33,7 +33,7 @@ it('runs the requested API through WebServer and a labeled Cordis effect', async
     return { body: await readBody(event), middleware: event.context.marker }
   })
   const bbb = defineEventHandler(event => event.url.pathname + event.url.search)
-  const service = defineHostService((app) => {
+  const service = defineWebServer((app) => {
     expect(app).toBeInstanceOf(H3)
     app.use((event) => {
       event.context.marker = 'seen'
@@ -69,7 +69,7 @@ it('runs the requested API through WebServer and a labeled Cordis effect', async
 
   await dispose()
   expect((await fetch(`${base}/hello`)).status).toBe(404)
-  const replacement = defineHostService(app => app.get('/hello', () => 'replacement'))
+  const replacement = defineWebServer(app => app.get('/hello', () => 'replacement'))
   disposers.push(replacement(ctx))
   await dispose()
   expect(await (await fetch(`${base}/hello`)).text()).toBe('replacement')
@@ -81,28 +81,28 @@ it('binds service and event context/options to each activation and clears dispos
   const second = { name: 'second' }
   const capturedContexts: Context[] = []
   const capturedOptions: Options[] = []
-  const service = defineHostService<Options>((app) => {
+  const service = defineWebServer<Options>((app) => {
     app.use((event) => {
-      capturedContexts.push(getSeviceContext(event))
+      capturedContexts.push(getServerContext(event))
     })
     app.mount('/instance', new H3().get('/', defineEventHandler((event) => {
-      const options = getSeviceOptions<Options>(event)
+      const options = getServerOptions<Options>(event)
       capturedOptions.push(options)
-      return { name: options.name, port: getSeviceContext(event).webServer.port }
+      return { name: options.name, port: getServerContext(event).webServer.port }
     })))
   })
-  expect(() => getSeviceContext(service)).toThrow('service is not active')
-  expect(() => getSeviceOptions(service)).toThrow('service is not active')
+  expect(() => getServerContext(service)).toThrow('service is not active')
+  expect(() => getServerOptions(service)).toThrow('service is not active')
   const event = mockEvent('/instance')
-  expect(() => getSeviceContext(event)).toThrow('event does not belong')
-  expect(() => getSeviceOptions(event)).toThrow('event does not belong')
+  expect(() => getServerContext(event)).toThrow('event does not belong')
+  expect(() => getServerOptions(event)).toThrow('event does not belong')
 
   const disposeFirst = service(ctx, first)
   disposers.push(disposeFirst)
   const firstInstance = service.__instance
-  expect(getSeviceContext(service)).toBe(ctx)
-  expect(getSeviceOptions(service)).toBe(first)
-  expectTypeOf(getSeviceOptions(service)).toEqualTypeOf<Options>()
+  expect(getServerContext(service)).toBe(ctx)
+  expect(getServerOptions(service)).toBe(first)
+  expectTypeOf(getServerOptions(service)).toEqualTypeOf<Options>()
   expect(() => service(ctx, second)).toThrow('duplicate exact route')
   expect(service.__instance).toBe(firstInstance)
 
@@ -112,8 +112,8 @@ it('binds service and event context/options to each activation and clears dispos
   const otherBase = `http://127.0.0.1:${other.webServer.port}`
   const disposeSecond = service(other, second)
   disposers.push(disposeSecond)
-  expect(getSeviceContext(service)).toBe(other)
-  expect(getSeviceOptions(service)).toBe(second)
+  expect(getServerContext(service)).toBe(other)
+  expect(getServerOptions(service)).toBe(second)
   expect(await (await fetch(`${base}/instance`)).json()).toEqual({ name: 'first', port: ctx.webServer.port })
   expect(await (await fetch(`${otherBase}/instance`)).json()).toEqual({ name: 'second', port: other.webServer.port })
   expect(capturedContexts).toEqual([ctx, other])
@@ -121,29 +121,29 @@ it('binds service and event context/options to each activation and clears dispos
   expect(capturedOptions[1]).toBe(second)
 
   disposeFirst()
-  expect(getSeviceContext(service)).toBe(other)
+  expect(getServerContext(service)).toBe(other)
   disposeSecond()
   expect(service.__instance).toBeUndefined()
-  expect(() => getSeviceOptions(service)).toThrow('service is not active')
+  expect(() => getServerOptions(service)).toThrow('service is not active')
   disposers.push(service(ctx, first))
-  expect(getSeviceContext(service)).toBe(ctx)
-  expect(getSeviceOptions(service)).toBe(first)
+  expect(getServerContext(service)).toBe(ctx)
+  expect(getServerOptions(service)).toBe(first)
 })
 
 it('supports services without options', async () => {
-  const service = defineHostService(app => app.get('/no-options', defineEventHandler((event) => {
-    expect(getSeviceOptions(event)).toBeUndefined()
-    expect(getSeviceContext(event)).toBe(ctx)
+  const service = defineWebServer(app => app.get('/no-options', defineEventHandler((event) => {
+    expect(getServerOptions(event)).toBeUndefined()
+    expect(getServerContext(event)).toBe(ctx)
     return { ok: true }
   })))
   disposers.push(service(ctx))
-  expect(getSeviceOptions(service)).toBeUndefined()
-  expectTypeOf(getSeviceOptions(service)).toEqualTypeOf<undefined>()
+  expect(getServerOptions(service)).toBeUndefined()
+  expectTypeOf(getServerOptions(service)).toEqualTypeOf<undefined>()
   expect(await (await fetch(`${base}/no-options`)).json()).toEqual({ ok: true })
 })
 
 it('keeps exact and longest-prefix method ownership', async () => {
-  disposers.push(defineHostService((app) => {
+  disposers.push(defineWebServer((app) => {
     app.post({ kind: 'prefix', path: '/scope' }, () => 'outer')
     app.get({ kind: 'prefix', path: '/scope/nested' }, () => 'inner')
     app.get('/scope/exact', () => 'exact')
@@ -156,7 +156,7 @@ it('keeps exact and longest-prefix method ownership', async () => {
 it('keeps HEAD fallback and literal descriptors within the selected host group', async () => {
   const outer = vi.fn(() => 'outer')
   const exact = vi.fn(() => 'exact')
-  disposers.push(defineHostService((app) => {
+  disposers.push(defineWebServer((app) => {
     app.head({ kind: 'prefix', path: '/ownership' }, outer)
     app.get('/ownership/exact', exact)
     app.get({ kind: 'prefix', path: '/ownership/nested' }, exact)
@@ -177,7 +177,7 @@ it('keeps HEAD fallback and literal descriptors within the selected host group',
 it('preserves native middleware, routing options, patterns, mounted apps and chaining', async () => {
   let captured: HostApp | undefined
   const child = new H3().get('/', () => 'child root').get('/child', event => ({ marker: event.context.marker }))
-  disposers.push(defineHostService((app) => {
+  disposers.push(defineWebServer((app) => {
     captured = app
     app.use((event) => {
       event.context.marker = 'native'
@@ -198,16 +198,16 @@ it('preserves native middleware, routing options, patterns, mounted apps and cha
 })
 
 it('rolls back partial registration without removing existing routes', async () => {
-  disposers.push(defineHostService(app => app.get('/occupied', () => 'existing'))(ctx))
-  expect(() => defineHostService((app) => {
+  disposers.push(defineWebServer(app => app.get('/occupied', () => 'existing'))(ctx))
+  expect(() => defineWebServer((app) => {
     app.get('/temporary', () => 'temporary')
     app.get('/occupied', () => 'conflict')
   })(ctx)).toThrow('duplicate exact route')
   expect((await fetch(`${base}/temporary`)).status).toBe(404)
   expect(await (await fetch(`${base}/occupied`)).text()).toBe('existing')
-  const dispose = defineHostService(app => app.get('/temporary', () => 'new'))(ctx)
+  const dispose = defineWebServer(app => app.get('/temporary', () => 'new'))(ctx)
   dispose()
-  const replacement = defineHostService(app => app.get('/temporary', () => 'replacement'))(ctx)
+  const replacement = defineWebServer(app => app.get('/temporary', () => 'replacement'))(ctx)
   disposers.push(replacement)
   dispose()
   expect(await (await fetch(`${base}/temporary`)).text()).toBe('replacement')
@@ -226,22 +226,22 @@ it('validates route declarations before any registration', () => {
   ]
   const register = vi.spyOn(ctx.webServer, 'register')
   for (const route of invalid) {
-    expect(() => defineHostService((app) => {
+    expect(() => defineWebServer((app) => {
       app.get('/otherwise-valid', () => 'unused')
       app.get(route as HostRoute, () => 'invalid')
     })(ctx)).toThrow(TypeError)
   }
   expect(register).not.toHaveBeenCalled()
   register.mockRestore()
-  expect(() => defineHostService(app => app.get('/:id', () => 'root pattern'))(ctx)).toThrow('root-level patterns')
-  expect(() => defineHostService(() => {})(new Context())).toThrow('webServer service')
+  expect(() => defineWebServer(app => app.get('/:id', () => 'root pattern'))(ctx)).toThrow('root-level patterns')
+  expect(() => defineWebServer(() => {})(new Context())).toThrow('webServer service')
 })
 
 it('keeps large responses compressed and Node end callbacks working', async () => {
   const body = 'large gzip response '.repeat(256)
   const onEnd = vi.fn()
   const onRepeatedEnd = vi.fn()
-  disposers.push(defineHostService((app) => {
+  disposers.push(defineWebServer((app) => {
     app.get('/large', () => new Response(body, { headers: { 'content-type': 'text/plain', 'cache-control': 'public, max-age=60' } }))
     app.get('/large-node', (req, res) => {
       res.setHeader('content-type', 'text/plain')
