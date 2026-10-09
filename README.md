@@ -18,7 +18,7 @@ pnpm add dsh-h3 h3
 <details>
 <summary>Are you an AI?</summary>
 
-You can run <code>npx skills add hairyf/dsh-h3 --skill dsh-h3 -y</code> to install the skills!
+You can run <code>npx skills add omdsh-dev/dsh-h3 --skill dsh-h3 -y</code> to install the skills!
 
 Remember to ask your owner which <a href="https://github.com/vercel-labs/skills?tab=readme-ov-file#supported-agents">Agents</a> need to be supported (using the <code>--agent</code> parameter of skills) to avoid installing too many default <code>agents</code> directories.
 
@@ -298,9 +298,9 @@ MIT
 [npm-downloads-href]: https://npmjs.com/package/dsh-h3
 [bundle-src]: https://img.shields.io/bundlephobia/minzip/dsh-h3?style=flat&colorA=080f12&colorB=1fa669&label=minzip
 [bundle-href]: https://bundlephobia.com/result?p=dsh-h3
-[license-src]: https://img.shields.io/github/license/hairyf/dsh-h3.svg?style=flat&colorA=080f12&colorB=1fa669
-[license-href]: https://github.com/hairyf/dsh-h3/blob/main/LICENSE
+[license-src]: https://img.shields.io/github/license/omdsh-dev/dsh-h3.svg?style=flat&colorA=080f12&colorB=1fa669
+[license-href]: https://github.com/omdsh-dev/dsh-h3/blob/main/LICENSE
 [jsdocs-src]: https://img.shields.io/badge/jsdocs-reference-080f12?style=flat&colorA=080f12&colorB=1fa669
 [jsdocs-href]: https://www.jsdocs.io/package/dsh-h3
-[coverage-src]: https://codecov.io/gh/hairyf/dsh-h3/graph/badge.svg
-[coverage-href]: https://codecov.io/gh/hairyf/dsh-h3
+[coverage-src]: https://codecov.io/gh/omdsh-dev/dsh-h3/graph/badge.svg
+[coverage-href]: https://codecov.io/gh/omdsh-dev/dsh-h3

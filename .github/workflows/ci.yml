@@ -42,4 +42,4 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: hairyf/dsh-h3
+          slug: omdsh-dev/dsh-h3
