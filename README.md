@@ -27,7 +27,7 @@ Remember to ask your owner which <a href="https://github.com/vercel-labs/skills?
 ## 特性
 
 - **原生 H3**：支持中间件、路由参数、子应用、路由选项和链式调用
-- **宿主路由**：支持字符串路径与使用 exact/prefix 匹配
+- **宿主路由**：仅使用原生 H3 字符串路径，自动推导宿主的 exact/prefix 匹配
 - **上下文与选项**：在服务外部或 [h3](https://github.com/h3js/h3) 处理器中读取本次激活的 Context 和选项
 - **生命周期清理**：通过 Cordis effect 卸载路由，注册失败时回滚本次改动
 - **复用宿主服务**：使用 `ctx.webServer`，不启动额外服务器、不占用 fallback
@@ -58,9 +58,8 @@ import { inspect } from './routes/inspect'
 
 export const server = defineWebServer((app) => {
   app.get('/api/health', health)
-  // or
-  app.get({ kind: 'exact', path: '/api/version' }, version)
-  app.get({ kind: 'prefix', path: '/api/inspect' }, inspect)
+  app.get('/api/version', version)
+  app.get('/api/inspect/**', inspect)
 })
 ```
 
@@ -140,18 +139,21 @@ export function apply(ctx: Context): void {
 
 ### 3. Node.js 原生 HTTP 处理器
 
-服务支持直接传入双参数的 Node.js HTTP 回调函数：
+Node.js HTTP 回调函数必须先通过 H3 的 `fromNodeHandler` 显式转换：
 
 ```ts
+import { defineWebServer } from 'dsh-h3'
+import { fromNodeHandler } from 'h3'
+
 const server = defineWebServer((app) => {
-  app.get('/api/text', (req, res) => {
+  app.get('/api/text', fromNodeHandler((req, res) => {
     res.setHeader('content-type', 'text/plain; charset=utf-8')
     res.end(req.method)
-  })
+  }))
 })
 ```
 
-> ⚠️ **提示**：自动识别要求必须**显式声明两个参数**（如 `req, res`）。如果仅声明 `req`、使用了默认参数或使用了 Rest 参数（`...args`），请显式使用 H3 的 `fromNodeHandler` 进行包裹。
+> ⚠️ **提示**：不会根据回调参数数量自动转换 Node 处理器。显式转换后的 Node 处理器可在运行时使用，但 GenAPI 不支持分析这类处理器。
 
 ---
 
@@ -201,12 +203,12 @@ pnpm exec genapi
 * **输入要求**：`input` 文件必须是在模块顶层直接声明 `defineWebServer` 的入口文件。
 * **支持的语法**：
   * 支持 `app.get/post/...`、`app.on('POST', ...)` 及链式调用。
-  * 支持静态字符串路径和 exact/prefix 对象路径（prefix 会生成根端点，不自动枚举子路径）。
-  * `'/api/users/:id'` 会生成必填路径参数；对象描述符中的 `:id` 将按字面量处理。
+  * 支持静态字符串路径和静态前缀下的简单 `:parameter` 路由；`'/api/users/:id'` 会生成必填路径参数。
+  * 唯一的通配符例外是非根、完全静态前缀后的末尾 `/**`：`'/api/inspect/**'` 仅生成固定端点 `/api/inspect` 的请求函数，不生成通配符或子路径客户端。
   * 通过 `getQuery<Query>(event)` 或 `readBody<Body>(event)` 自动推导 Query/Body 类型。
 
 * **命名规范**：函数名与生成的类型名均由路径与 HTTP 方法合成（如 `/api/health` -> `getApiHealth`、`GetApiHealthResponse`）；若需自定义函数名，可配合 `patch.operations` 使用。
-* **暂不支持**：动态条件、循环、子应用挂载、通配符、复杂正则模式、原生的 Node 回调、递归类型及非 JSON 契约（解析遇到不支持的语法时将打印准确的源码位置）。
+* **暂不支持**：动态条件、循环、子应用挂载、根级 `/**`、带参数前缀后的 `/**`、其他通配符或复杂正则模式、Node 处理器（包括 `fromNodeHandler` 包装）、递归类型及非 JSON 契约（解析遇到不支持的语法时将打印准确的源码位置）。
 
 ---
 
@@ -233,12 +235,14 @@ dsh web --patch ./cordis.patch.yml
 ### `defineWebServer<Options>(setup)`
 
 ```ts
+import type { H3 } from 'h3'
+
 function defineWebServer<Options = undefined>(
-  setup: (app: HostApp) => void | HostApp,
+  setup: (app: H3) => void | H3,
 ): HostService<Options>
 ```
 
-每次激活都会创建一个全新的 H3 实例。`setup` 函数必须同步执行。`HostApp` 是增强版的 H3 App 实例。
+每次激活都会创建一个全新的 H3 实例。`setup` 函数必须同步执行，返回 `undefined` 或传入的 `app`。传入的是原生 H3 实例，`app.on` 不会被改写；路由注册沿用 H3 的字符串路径、处理器类型与链式调用。
 
 ### `getServerContext(server | event)`
 
@@ -248,25 +252,25 @@ function defineWebServer<Options = undefined>(
 
 导入自 `dsh-h3/utils`。获取当前激活时传入的选项对象。从 `server` 提取时支持自动类型推导；从事件提取时显式传入选项类型。
 
-`server.__instance` 指向最近一次成功激活的实例。卸载旧实例不会清除新实例；卸载当前实例后不回退到更早的实例。服务未激活或事件不属于本库时，这两个工具会抛出 `TypeError`。
+`server.__host_instance` 指向最近一次成功激活的实例。卸载旧实例不会清除新实例；卸载当前实例后不回退到更早的实例。服务未激活或事件不属于本库时，这两个工具会抛出 `TypeError`。
 
 ### `original(configRead)`
 
 导入自 `dsh-h3/genapi`。用于 GenAPI pipeline 中，负责填充路由与其类型元数据。
 
-### `HostRoute`
+### H3 字符串路径与宿主匹配
 
-```ts
-type HostRoute = Omit<WebRoute, 'handler'>
-```
+路由仅接收原生 H3 字符串路径；宿主匹配规则由内部适配器推导：
 
 | 路径声明方式 | 宿主端注册匹配规则 |
 | --- | --- |
-| `'/api/health'` | 精确匹配（exact） `/api/health` |
+| `'/api/version'` | 精确匹配（exact） `/api/version` |
 | `'/api/users/:id'` | 前缀匹配（prefix） `/api/users`，具体参数由 H3 解析 |
-| `'/api/files/**'` | 前缀匹配（prefix） `/api/files`，通配符由 H3 解析 |
-| `{ kind: 'exact', path: '/api/version' }` | 字面量精确匹配 `/api/version` |
-| `{ kind: 'prefix', path: '/api/inspect' }` | 匹配 `/api/inspect` 及其所有子路径（不匹配 `/api/inspection`） |
+| `'/api/inspect/**'` | 前缀匹配（prefix） `/api/inspect`，通配符由 H3 解析 |
+
+静态路径推导为 exact；动态模式推导为其首个动态片段之前的静态前缀，并由 H3 完成实际匹配。根级动态模式（如 `/:id`、`/**`）不支持。宿主前缀按路径片段匹配，不会将 `/api/inspection` 交给 `/api/inspect` 路由组。
+
+每个宿主路由组独立约束方法与路径所有权：已匹配路径上未允许的方法返回带 `allow` 响应头的 `405`，`HEAD` 可回退到 `GET`；`all`、`HEAD` 与模式路由不会越过所属路由组。宿主已占用的 `(kind, path)` 会导致重复注册失败，并仅回滚本次激活。
 
 > 🔐 **安全建议**：身份认证、鉴权以及 Body 大小限制等系统安全职责应由插件自身保障。请务必为敏感路由事先配置好对应的 H3 中间件。
 

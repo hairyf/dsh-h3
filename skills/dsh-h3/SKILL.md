@@ -1,6 +1,6 @@
 ---
 name: dsh-h3
-description: Build host-only HTTP route services for DeepSeek Harness (DSH) plugins with dsh-h3, an H3 v2 wrapper managed by Cordis. Use when creating or editing a DSH plugin that registers routes on ctx.webServer with defineWebServer, when reading the activation Context/options in handlers, when choosing exact vs prefix host routes and path parameters, or when generating a typed client API with dsh-h3/genapi.
+description: Build host-only HTTP route services for DeepSeek Harness (DSH) plugins with dsh-h3, an H3 v2 integration managed by Cordis. Use when creating or editing a DSH plugin that registers routes on ctx.webServer with defineWebServer, when reading the activation Context/options in handlers, when using native H3 string paths, parameters, or wildcards, or when generating a typed client API with dsh-h3/genapi.
 license: MIT
 compatibility: Requires Node.js and pnpm. Depends on H3 v2 and @deepseek-ai/dsh-host-webserver; the host must provide the webServer service before the plugin activates.
 metadata:
@@ -20,7 +20,7 @@ registration and disposal.
 - Create or modify a DSH plugin that serves HTTP routes.
 - Define routes with `defineWebServer` and activate them with `ctx.effect`.
 - Read the active `Context` or options from a handler or from the service.
-- Decide between `exact` and `prefix` host routes, or add path parameters.
+- Use native H3 string paths, path parameters, or wildcard routes.
 - Generate the typed client API with `dsh-h3/genapi`.
 
 Do **not** use this skill for a standalone H3/Nitro server. `dsh-h3` always
@@ -33,8 +33,11 @@ registers onto a host-provided `webServer`.
   disposer. Activate it with `ctx.effect(() => server(ctx, options), 'label')`.
 - The plugin must declare `inject = ['webServer']` so it activates only after
   the host is ready.
-- `HostApp` is an enhanced `H3` instance: `app.get/post/put/patch/delete/...`,
-  `app.on(method, ...)`, `app.use`, `app.mount`, and chaining all work.
+- `setup` has signature `(app: H3) => void | H3` and must be synchronous,
+  returning nothing or the supplied app. It receives the native H3 instance;
+  `app.on` is not replaced. Use H3 string paths, handler types, route options,
+  `app.get/post/put/patch/delete/...`, `app.on(method, ...)`, `app.use`, `app.mount`,
+  and chaining.
 
 ## Quick start
 
@@ -56,8 +59,8 @@ export interface ServerOptions {
 
 export const server = defineWebServer<ServerOptions>((app) => {
   app.get('/api/health', health)
-  app.get({ kind: 'exact', path: '/api/server' }, () => ({ ok: true }))
-  app.get({ kind: 'prefix', path: '/api/inspect' }, event => ({ path: event.url.pathname }))
+  app.get('/api/version', () => ({ version: '1.0.0' }))
+  app.get('/api/inspect/**', event => ({ path: event.url.pathname }))
 })
 ```
 
@@ -77,23 +80,24 @@ export function apply(ctx: Context): void {
 
 | Declaration | Host matching |
 | --- | --- |
-| `app.get('/api/health', handler)` | exact `/api/health` |
+| `app.get('/api/version', handler)` | exact `/api/version` |
 | `app.get('/api/users/:id', handler)` | prefix `/api/users`; H3 parses `:id` |
-| `app.get('/api/files/**', handler)` | prefix `/api/files`; H3 parses the wildcard |
-| `app.get({ kind: 'exact', path: '/api/server' }, handler)` | literal exact `/api/server` |
-| `app.get({ kind: 'prefix', path: '/api/inspect' }, handler)` | `/api/inspect` and all children (not `/api/inspection`) |
+| `app.get('/api/inspect/**', handler)` | prefix `/api/inspect`; H3 parses the wildcard |
 
 Key rules:
 
-- A **string path** containing a param or wildcard becomes a **prefix** host
-  route. A plain string path is an **exact** route.
-- An **object descriptor** (`{ kind, path }`) is treated as a literal; `:id`
-  inside it is not a parameter unless you keep it in a string path.
+- Register routes with **native H3 strings only**. Static paths infer **exact**
+  host routes; dynamic patterns infer a **prefix** ending before the first
+  dynamic segment. H3 still performs the actual route match.
+- Root-level patterns such as `/:id` and `/**` are rejected; use a static prefix.
+  Host prefixes respect segment boundaries (`/api/inspection` is outside
+  `/api/inspect`).
 - Read path params with H3's `getRouterParam(event, 'id')`.
 - Methods are owned per host group: an unmatched method on a matched path
-  returns `405` with an `allow` header; `HEAD` falls back to `GET`.
-- Registering the same `(kind, path)` twice throws, and a failed activation
-  rolls back only its own routes.
+  returns `405` with an `allow` header; `HEAD` falls back to `GET`. `all`, `HEAD`,
+  and pattern routes cannot escape their group.
+- Registering an already-owned host `(kind, path)` throws, and a failed
+  activation rolls back only its own routes.
 
 ## Read the Context and options
 
@@ -141,18 +145,20 @@ export default defineEventHandler<{ body: EchoBody }>(async (event) => {
 
 ## Node.js callbacks
 
-A two-parameter callback is auto-detected as a Node handler:
+Convert Node callbacks explicitly with H3's `fromNodeHandler`:
 
 ```ts
-app.get('/api/text', (req, res) => {
+import { fromNodeHandler } from 'h3'
+
+app.get('/api/text', fromNodeHandler((req, res) => {
   res.setHeader('content-type', 'text/plain; charset=utf-8')
   res.end(req.method)
-})
+}))
 ```
 
-Automatic detection needs **exactly two declared parameters**. If you declare one
-parameter, use default/rest parameters, or need `req.url`, wrap with H3's
-`fromNodeHandler` explicitly. Node callbacks are not visible to GenAPI.
+There is no parameter-count-based automatic conversion. Handlers wrapped with
+`fromNodeHandler` work at runtime, but GenAPI cannot analyse Node callbacks or
+their wrappers.
 
 ## Generate the client API
 
@@ -189,8 +195,12 @@ rule set and limitations.
 
 > **Keep the input GenAPI-friendly**: declare `defineWebServer` directly at module
 > scope, keep `setup` synchronous, and register routes with direct
-> `app.method(...)` calls. Conditionals, loops, and mounted sub-apps are not
-> analysed.
+> `app.method(...)` calls. Use static strings or simple `:parameter` segments below
+> a static prefix. A terminal `/**` after a non-root, fully static prefix is the
+> only wildcard exception: `/api/inspect/**` generates only the fixed endpoint
+> `/api/inspect`, not a wildcard or child-path client. Root `/**`, parameterized
+> prefixes before `/**`, other wildcard forms, conditionals, loops, and mounted
+> sub-apps are unsupported.
 
 ## Common pitfalls
 
@@ -200,7 +210,7 @@ rule set and limitations.
   serve routes.
 - Using `app.mount` or non-H3 sub-apps works at runtime but produces no client
   API.
-- Reusing the same `(kind, path)` throws `duplicate ... route`.
+- Registering an already-owned host `(kind, path)` throws `duplicate ... route`.
 - Do not start an extra server or bind a port; always reuse `ctx.webServer`.
 
 ## Verify your work
@@ -217,5 +227,5 @@ generated files.
 
 ## References
 
-- [API reference](references/api.md): `defineWebServer`, `HostApp`, `HostRoute`, utils, and route matching.
+- [API reference](<references/api.md>): `defineWebServer`, native H3 routing, utils, and host matching.
 - [GenAPI rules](references/genapi.md): pipeline setup, naming, and supported/unsupported syntax.

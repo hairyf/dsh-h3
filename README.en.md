@@ -27,7 +27,7 @@ Remember to ask your owner which <a href="https://github.com/vercel-labs/skills?
 ## Features
 
 - **Native H3**: middleware, route params, sub-apps, route options, and chaining.
-- **Host routing**: string paths plus `exact`/`prefix` matching.
+- **Host routing**: native H3 string paths only, with host `exact`/`prefix` matching inferred internally.
 - **Context and options**: read the Context and options of the current activation, either outside the service or inside an [h3](https://github.com/h3js/h3) handler.
 - **Lifecycle cleanup**: unregister routes through a Cordis effect, and roll back this activation's changes when registration fails.
 - **Reuse the host service**: uses `ctx.webServer`, starts no extra server, and takes no fallback slot.
@@ -56,8 +56,8 @@ import { health } from './routes/health'
 
 export const server = defineWebServer((app) => {
   app.get('/api/health', health)
-  app.get({ kind: 'exact', path: '/api/version' }, defineEventHandler(() => ({ version: '1.0.0' })))
-  app.get({ kind: 'prefix', path: '/api/inspect' }, defineEventHandler(event => ({ path: event.url.pathname })))
+  app.get('/api/version', defineEventHandler(() => ({ version: '1.0.0' })))
+  app.get('/api/inspect/**', defineEventHandler(event => ({ path: event.url.pathname })))
 })
 ```
 
@@ -137,18 +137,21 @@ export function apply(ctx: Context): void {
 
 ### 3. Native Node.js HTTP handlers
 
-The service accepts two-argument Node.js HTTP callbacks directly:
+Convert Node.js HTTP callbacks explicitly with H3's `fromNodeHandler`:
 
 ```ts
+import { defineWebServer } from 'dsh-h3'
+import { fromNodeHandler } from 'h3'
+
 const server = defineWebServer((app) => {
-  app.get('/api/text', (req, res) => {
+  app.get('/api/text', fromNodeHandler((req, res) => {
     res.setHeader('content-type', 'text/plain; charset=utf-8')
     res.end(req.method)
-  })
+  }))
 })
 ```
 
-> ⚠️ **Tip**: automatic detection requires **two explicitly declared parameters** (such as `req, res`). If you declare only `req`, use default parameters, or use rest parameters (`...args`), wrap the handler explicitly with H3's `fromNodeHandler`.
+> ⚠️ **Tip**: Node handlers are not converted automatically based on their parameter count. Explicitly converted Node handlers work at runtime, but GenAPI cannot analyse them.
 
 ---
 
@@ -198,11 +201,11 @@ pnpm exec genapi
 * **Input requirement**: the `input` file must be an entry file that declares `defineWebServer` directly at the top level of the module.
 * **Supported syntax**:
   * `app.get/post/...`, `app.on('POST', ...)`, and chaining are supported.
-  * Static string paths and `exact`/`prefix` object paths are supported (a `prefix` generates the root endpoint; child paths are not enumerated).
-  * `'/api/users/:id'` generates a required path parameter; `:id` inside an object descriptor is treated as a literal.
+  * Static string paths and simple `:parameter` routes below a static prefix are supported; `'/api/users/:id'` generates a required path parameter.
+  * The only wildcard exception is a terminal `/**` after a non-root, fully static prefix: `'/api/inspect/**'` generates a request function for the fixed endpoint `/api/inspect` only, never a wildcard or child-path client.
   * Query/Body types are inferred automatically from `getQuery<Query>(event)` or `readBody<Body>(event)`.
 * **Naming**: function names and generated type names are derived from the path and HTTP method (for example, `/api/health` -> `getApiHealth`, `GetApiHealthResponse`). Use `patch.operations` to customize the function name.
-* **Not supported**: dynamic conditions, loops, mounted sub-apps, wildcards, complex regex patterns, native Node callbacks, recursive types, and non-JSON contracts (unsupported syntax reports the exact source location).
+* **Not supported**: dynamic conditions, loops, mounted sub-apps, root `/**`, `/**` after a parameterized prefix, other wildcards or complex regex patterns, Node handlers (including `fromNodeHandler` wrappers), recursive types, and non-JSON contracts (unsupported syntax reports the exact source location).
 
 ---
 
@@ -228,12 +231,14 @@ dsh web --patch ./cordis.patch.yml
 ### `defineWebServer<Options>(setup)`
 
 ```ts
+import type { H3 } from 'h3'
+
 function defineWebServer<Options = undefined>(
-  setup: (app: HostApp) => void | HostApp,
+  setup: (app: H3) => void | H3,
 ): HostService<Options>
 ```
 
-Each activation creates a brand-new H3 instance. The `setup` function must run synchronously. `HostApp` is an enhanced H3 app instance.
+Each activation creates a brand-new H3 instance. The `setup` function must run synchronously and return `undefined` or the supplied `app`. It receives the native H3 instance without replacing `app.on`; route registration keeps H3's string paths, handler types, and chaining.
 
 ### `getServerContext(server | event)`
 
@@ -243,25 +248,25 @@ Imported from `dsh-h3/utils`. Returns the `Context` object passed in for the cur
 
 Imported from `dsh-h3/utils`. Returns the options object passed in for the current activation. Extraction from `server` supports automatic type inference; extraction from an event requires the options type explicitly.
 
-`server.__instance` points to the most recent successfully activated instance. Disposing an older instance does not clear a newer one; after disposing the current instance it does not fall back to an earlier one. When the service is not active, or when an event does not belong to this library, both helpers throw a `TypeError`.
+`server.__host_instance` points to the most recent successfully activated instance. Disposing an older instance does not clear a newer one; after disposing the current instance it does not fall back to an earlier one. When the service is not active, or when an event does not belong to this library, both helpers throw a `TypeError`.
 
 ### `original(configRead)`
 
 Imported from `dsh-h3/genapi`. Used inside the GenAPI pipeline to fill in the routes and their type metadata.
 
-### `HostRoute`
+### H3 string paths and host matching
 
-```ts
-type HostRoute = Omit<WebRoute, 'handler'>
-```
+Routes accept native H3 string paths only; the internal adapter infers host matching:
 
 | Path declaration | Host-side registration matching |
 | --- | --- |
-| `'/api/health'` | Exact match (exact) `/api/health` |
+| `'/api/version'` | Exact match (exact) `/api/version` |
 | `'/api/users/:id'` | Prefix match (prefix) `/api/users`; params are resolved by H3 |
-| `'/api/files/**'` | Prefix match (prefix) `/api/files`; the wildcard is resolved by H3 |
-| `{ kind: 'exact', path: '/api/version' }` | Literal exact match `/api/version` |
-| `{ kind: 'prefix', path: '/api/inspect' }` | Matches `/api/inspect` and every child path (does not match `/api/inspection`) |
+| `'/api/inspect/**'` | Prefix match (prefix) `/api/inspect`; the wildcard is resolved by H3 |
+
+Static paths infer exact matching. Dynamic patterns infer the static prefix before their first dynamic segment, with H3 performing the actual match. Root-level patterns such as `/:id` and `/**` are unsupported. Host prefixes respect path-segment boundaries, so `/api/inspection` does not enter the `/api/inspect` route group.
+
+Each host route group retains method and path ownership: an unmatched method on a matched path returns `405` with an `allow` header, and `HEAD` falls back to `GET`. `all`, `HEAD`, and pattern routes cannot escape their group. Registering a host-owned `(kind, path)` again fails and rolls back only the current activation.
 
 > 🔐 **Security advice**: authentication, authorization, and body size limits are the plugin's own responsibility. Always configure the appropriate H3 middleware for sensitive routes in advance.
 

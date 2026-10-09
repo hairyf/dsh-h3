@@ -80,39 +80,38 @@ receiver chain supported for chaining:
 app.get('/a', a).post('/b', b) // both collected
 ```
 
-`app.on(method, ...)` is supported and must pass exactly three arguments:
-method, path, handler. `app.all`, `app.connect`, `app.trace`, and `app.query`
-throw `declare a specific OpenAPI HTTP method instead of all/connect/trace/query`.
+`app.on(method, path, handler, opts?)` is supported; the method must be statically
+resolvable. Route options do not add client contract metadata. `app.all`,
+`app.connect`, `app.trace`, and `app.query` throw
+`declare a specific OpenAPI HTTP method instead of all/connect/trace/query`.
 
 ## Paths and parameters
 
-`routeOf` normalises each route path and extracts path parameters. A path must
-start with `/`, must not start with `//`, and must not contain `?`, `#`, `\`,
-`` ` ``, `$`, or trailing-slash (for descriptors); otherwise it throws
+`routeOf` normalises each native H3 string path and extracts path parameters.
+A path must start with `/`, must not start with `//`, and must not contain `?`,
+`#`, `\`, `'`, `` ` ``, or `$`; otherwise it throws
 `route path must be an absolute pathname without query, fragment or code delimiters`.
 
-String paths:
+Supported subset:
 
-- Only **static paths** and simple `:parameter` segments **below a static
-  prefix** are supported. Patterns starting with `/:` or containing any of
-  `{}*()+` throw
-  `only static paths and simple :parameter segments below a static prefix are supported`.
-- Each `/:name` (matching `[A-Z_$][\w$]*`) becomes a required path parameter
-  `{ name, in: 'path', required: true, type: 'string' }`. Names must be unique.
+- **Static paths** and simple `:parameter` segments **below a static prefix**
+  generate client endpoints.
+- Each `/:name` (matching `[A-Z_$][\w$]*`, case-insensitively) becomes a required
+  path parameter `{ name, in: 'path', required: true, type: 'string' }`. Names
+  must be unique.
 - Any remaining `:` after substitution throws
   `only simple :parameter segments are supported`.
+- A terminal `/**` after a **non-root, fully static prefix** is the only wildcard
+  exception. `'/api/inspect/**'` generates only the fixed endpoint
+  `/api/inspect`, so `getApiInspect` requests that exact base URL. It does **not**
+  accept arbitrary wildcard paths or generate clients for child paths.
+- Root `/**`, parameterized prefixes before `/**` (such as
+  `/api/users/:id/**`), single-star patterns, interior `**`, and other complex
+  patterns remain unsupported. Other patterns starting with `/:` or containing
+  `{}*()+` are rejected.
 
-Object descriptors (`{ kind, path }`):
-
-- `kind` must be `'exact'` or `'prefix'`; otherwise
-  `route descriptors require kind: exact/prefix and a static path`.
-- Descriptor paths are treated as **literal**: `:id` is not a parameter, and
-  braces throw `literal braces are not supported by the OpenAPI parser`.
-- The path must be canonical (`new URL(path, 'http://localhost').pathname === path`).
-- Descriptors may not contain spreads or computed properties.
-
-A `prefix` route registers only its **root** endpoint; child paths are not
-enumerated.
+Runtime H3 routing is broader than this client-generation subset. A host prefix
+inferred from an H3 pattern does not imply GenAPI support for that pattern.
 
 ## Handlers
 
@@ -123,7 +122,8 @@ enumerated.
 - An object form `{ handler: fn, ... }` is unwrapped to its `handler` field.
 - The result must be a statically resolvable arrow/function expression or
   function declaration with **fewer than two declared parameters**.
-- Node callbacks (two parameters), sub-applications, and computed handlers throw
+- Node callbacks (two parameters), `fromNodeHandler` wrappers, sub-applications,
+  and computed handlers throw
   `use a statically resolvable H3 event handler, not a Node callback or sub-application`.
 
 Nested function bodies are not traversed when looking for contracts: only the
@@ -206,8 +206,8 @@ The response type comes from the handler's return type via
 | `app.get/post/put/patch/delete/head/options` | `app.all/connect/trace/query` |
 | `app.on('POST', path, handler)` | `app.mount`, `app.use`, sub-apps |
 | Chained `app.get(...).post(...)` | `if`/loops/`try`/nested registration |
-| Static strings, `exact`/`prefix` descriptors | `{}*()+` patterns, root `/:id`, `/**` |
-| Simple `:param` segments under a static prefix | Complex regex, non-canonical paths |
-| `getQuery<T>` / `readBody<T>` contracts | Node callbacks, computed handlers |
+| Static strings, simple `:param` segments under a static prefix | Root `/:id`, complex regex patterns |
+| Static `/api/inspect/**` -> fixed `/api/inspect` only | Root `/**`, parameterized `/**`, single-star or interior `**` patterns |
+| `getQuery<T>` / `readBody<T>` contracts | Node callbacks (including `fromNodeHandler`), computed handlers |
 | JSON object/array/tuple contracts | Recursive types, functions, classes, `bigint` |
 | `Date` -> `string` | `getQuery`/`readBody` used more than once |

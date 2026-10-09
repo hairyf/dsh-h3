@@ -1,23 +1,14 @@
-import type { HostApp, HostRoute } from 'dsh-h3'
 import { Buffer } from 'node:buffer'
 import { request } from 'node:http'
 import { gunzipSync } from 'node:zlib'
 import { Context } from '@deepseek-ai/cordis'
 import { WebServer } from '@deepseek-ai/dsh-host-webserver'
-import * as built from 'dsh-h3'
-import * as builtUtils from 'dsh-h3/utils'
-import { defineEventHandler, getRouterParam, H3, mockEvent, readBody } from 'h3'
+import { defineEventHandler, fromNodeHandler, getRouterParam, H3, mockEvent, readBody } from 'h3'
 import { afterAll, afterEach, beforeAll, describe, expect, expectTypeOf, it, vi } from 'vitest'
-import * as source from '../src/index'
-import * as sourceUtils from '../src/utils'
+import { defineWebServer } from '../src'
+import { getServerContext, getServerOptions } from '../src/utils'
 
-// Every scenario runs twice: against the TypeScript sources (coverage) and the built package (published artifacts).
-const implementations: Array<{ name: string, api: typeof source, utils: typeof sourceUtils }> = [
-  { name: 'source', api: source, utils: sourceUtils },
-  { name: 'built', api: built, utils: builtUtils },
-]
-
-describe.each(implementations)('$name host service', ({ api: { defineWebServer }, utils: { getServerContext, getServerOptions } }) => {
+describe('host service', () => {
   const ctx = new Context()
   const disposers: Array<() => void | Promise<void>> = []
   let base: string
@@ -44,15 +35,17 @@ describe.each(implementations)('$name host service', ({ api: { defineWebServer }
     const bbb = defineEventHandler(event => event.url.pathname + event.url.search)
     const service = defineWebServer((app) => {
       expect(app).toBeInstanceOf(H3)
+      expectTypeOf(app).toEqualTypeOf<H3>()
+      expect(app.on).toBe(H3.prototype.on)
       app.use((event) => {
         event.context.marker = 'seen'
       })
-      app.post('/hello', (req, res) => {
+      app.post('/hello', fromNodeHandler((req, res) => {
         res.end('posted')
-      })
+      }))
       app.get('/hello', hello)
-      app.post({ kind: 'exact', path: '/aaa' }, aaa)
-      app.post({ kind: 'prefix', path: '/bbb' }, bbb)
+      app.post('/aaa', aaa)
+      app.post('/bbb/**', bbb)
     })
     const register = vi.spyOn(ctx.webServer, 'register')
     const dispose = ctx.effect(() => service(ctx), 'custom-label')
@@ -108,12 +101,12 @@ describe.each(implementations)('$name host service', ({ api: { defineWebServer }
 
     const disposeFirst = service(ctx, first)
     disposers.push(disposeFirst)
-    const firstInstance = service.__instance
+    const firstInstance = service.__host_instance
     expect(getServerContext(service)).toBe(ctx)
     expect(getServerOptions(service)).toBe(first)
     expectTypeOf(getServerOptions(service)).toEqualTypeOf<Options>()
     expect(() => service(ctx, second)).toThrow('duplicate exact route')
-    expect(service.__instance).toBe(firstInstance)
+    expect(service.__host_instance).toBe(firstInstance)
 
     const other = new Context()
     disposers.push(() => other.fiber.dispose())
@@ -132,7 +125,7 @@ describe.each(implementations)('$name host service', ({ api: { defineWebServer }
     disposeFirst()
     expect(getServerContext(service)).toBe(other)
     disposeSecond()
-    expect(service.__instance).toBeUndefined()
+    expect(service.__host_instance).toBeUndefined()
     expect(() => getServerOptions(service)).toThrow('service is not active')
     disposers.push(service(ctx, first))
     expect(getServerContext(service)).toBe(ctx)
@@ -153,8 +146,8 @@ describe.each(implementations)('$name host service', ({ api: { defineWebServer }
 
   it('keeps exact and longest-prefix method ownership', async () => {
     disposers.push(defineWebServer((app) => {
-      app.post({ kind: 'prefix', path: '/scope' }, () => 'outer')
-      app.get({ kind: 'prefix', path: '/scope/nested' }, () => 'inner')
+      app.post('/scope/**', () => 'outer')
+      app.get('/scope/nested/**', () => 'inner')
       app.get('/scope/exact', () => 'exact')
     })(ctx))
     expect(await (await fetch(`${base}/scope/nested/child`)).text()).toBe('inner')
@@ -162,31 +155,28 @@ describe.each(implementations)('$name host service', ({ api: { defineWebServer }
     expect((await fetch(`${base}/scope/exact`, { method: 'POST' })).status).toBe(405)
   })
 
-  it('keeps HEAD fallback and literal descriptors within the selected host group', async () => {
+  it('keeps HEAD and all-method fallbacks within the selected host group', async () => {
     const outer = vi.fn(() => 'outer')
     const exact = vi.fn(() => 'exact')
     disposers.push(defineWebServer((app) => {
-      app.head({ kind: 'prefix', path: '/ownership' }, outer)
+      app.head('/ownership/**', outer)
       app.get('/ownership/exact', exact)
-      app.get({ kind: 'prefix', path: '/ownership/nested' }, exact)
+      app.get('/ownership/nested/**', exact)
+      app.all('/all-methods/**', outer)
+      app.get('/all-methods/exact', exact)
       app.get('/', () => 'root')
-      app.get({ kind: 'prefix', path: '/literal' }, () => 'prefix')
-      app.get({ kind: 'exact', path: '/literal/:id' }, () => 'colon')
-      app.get({ kind: 'exact', path: '/literal/*' }, () => 'star')
-      app.get({ kind: 'exact', path: '/literal/%78' }, () => 'encoded')
-      app.get({ kind: 'exact', path: '/literal/x' }, () => 'plain')
     })(ctx))
     for (const path of ['/ownership/exact', '/ownership/nested/child'])
       expect((await fetch(`${base}${path}`, { method: 'HEAD' })).status).toBe(200)
+    expect((await fetch(`${base}/all-methods/exact`, { method: 'POST' })).status).toBe(405)
     expect(await (await fetch(`${base}/`)).text()).toBe('root')
     expect(exact).toHaveBeenCalledTimes(2)
     expect(outer).not.toHaveBeenCalled()
-    for (const [path, body] of [['/literal/other', 'prefix'], ['/literal/:id', 'colon'], ['/literal/*', 'star'], ['/literal/%78', 'encoded'], ['/literal/x', 'plain']])
-      expect(await (await fetch(`${base}${path}`)).text()).toBe(body)
+    expect(await (await fetch(`${base}/all-methods/child`, { method: 'POST' })).text()).toBe('outer')
   })
 
   it('preserves native middleware, routing options, patterns, mounted apps and chaining', async () => {
-    let captured: HostApp | undefined
+    let captured: H3 | undefined
     const child = new H3().get('/', () => 'child root').get('/child', event => ({ marker: event.context.marker }))
     disposers.push(defineWebServer((app) => {
       captured = app
@@ -199,12 +189,16 @@ describe.each(implementations)('$name host service', ({ api: { defineWebServer }
       })).toBe(app)
       app.get('/files/**', defineEventHandler(event => event.url.pathname))
       app.get('/inline/file-:id', defineEventHandler(event => getRouterParam(event, 'id')))
+      app.on('get', '/trailing/', () => 'trailing')
+      app.get('/路径', () => 'unicode')
     })(ctx))
     expect(await (await fetch(`${base}/mounted`)).text()).toBe('child root')
     expect(await (await fetch(`${base}/mounted/child`)).json()).toEqual({ marker: 'native' })
     expect(await (await fetch(`${base}/inline/file-456`)).text()).toBe('456')
     expect(await (await fetch(`${base}/users/123`)).json()).toEqual({ id: '123', middleware: true })
     expect(await (await fetch(`${base}/files/a/b`)).text()).toBe('/files/a/b')
+    expect(await (await fetch(`${base}/trailing`)).text()).toBe('trailing')
+    expect(await (await fetch(`${base}/路径`)).text()).toBe('unicode')
     expect(await (await captured!.request('/users/direct')).json()).toEqual({ id: 'direct', middleware: true })
   })
 
@@ -225,33 +219,26 @@ describe.each(implementations)('$name host service', ({ api: { defineWebServer }
   })
 
   it('validates route declarations before any registration', () => {
-    const invalid = [
-      { kind: 'other', path: '/invalid' },
-      { kind: 'exact', path: 'relative' },
-      { kind: 'exact', path: '/invalid/' },
-      { kind: 'prefix', path: '/invalid?query' },
-      { kind: 'exact', path: '/invalid#fragment' },
-      { kind: 'exact', path: '//example.com' },
-      { kind: 'exact', path: '/a/../b' },
-      { kind: 'exact', path: '/has space' },
-    ]
+    const invalid = ['/invalid\\?query', '//example.com', '/invalid\\path', '/invalid//', '/api//:id']
     const register = vi.spyOn(ctx.webServer, 'register')
     for (const route of invalid) {
       expect(() => defineWebServer((app) => {
         app.get('/otherwise-valid', () => 'unused')
-        app.get(route as HostRoute, () => 'invalid')
+        app.get(route, () => 'invalid')
       })(ctx)).toThrow(TypeError)
     }
     expect(register).not.toHaveBeenCalled()
     register.mockRestore()
     expect(() => defineWebServer(app => app.get('/:id', () => 'root pattern'))(ctx)).toThrow('root-level patterns')
-    expect(() => defineWebServer(() => {})(new Context())).toThrow('webServer service')
+    expect(() => defineWebServer(() => { })(new Context())).toThrow('webServer service')
     // @ts-expect-error the setup argument must be a callback
     expect(() => defineWebServer('invalid')).toThrow('requires a setup callback')
     // @ts-expect-error the setup result must be nothing or the app itself
     expect(() => defineWebServer(() => 'invalid')(ctx)).toThrow('setup must be synchronous')
-    // @ts-expect-error a route must be a path or a descriptor
+    // @ts-expect-error a route must be an H3 path string
     expect(() => defineWebServer(app => app.get(undefined, () => 'unused'))(ctx)).toThrow(TypeError)
+    // @ts-expect-error host route descriptors are not H3 path strings
+    expect(() => defineWebServer(app => app.get({ kind: 'exact', path: '/removed' }, () => 'unused'))(ctx)).toThrow(TypeError)
   })
 
   it('keeps large responses compressed and Node end callbacks working', async () => {
@@ -260,14 +247,14 @@ describe.each(implementations)('$name host service', ({ api: { defineWebServer }
     const onRepeatedEnd = vi.fn()
     disposers.push(defineWebServer((app) => {
       app.get('/large', () => new Response(body, { headers: { 'content-type': 'text/plain', 'cache-control': 'public, max-age=60' } }))
-      app.get('/large-node', (req, res) => {
+      app.get('/large-node', fromNodeHandler((req, res) => {
         res.setHeader('content-type', 'text/plain')
         res.setHeader('content-length', Buffer.byteLength(body))
         res.end(body, () => {
           onEnd()
           res.end(onRepeatedEnd)
         })
-      })
+      }))
     })(ctx))
     for (const path of ['/large', '/large-node']) {
       const response = await new Promise<{ encoding: string | string[] | undefined, body: Buffer }>((resolve, reject) => {

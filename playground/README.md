@@ -84,7 +84,7 @@ console.log(health.uptimeMs, server.port, request.query)
 
 ### 3. 生成规则与维护
 
-* **前缀匹配生成**：前缀路由（`prefix`）仅生成根端点 `/api/inspect` 的 API 函数，不会自动枚举任意动态子路径。
+* **支持的路由子集**：GenAPI 支持静态字符串和静态前缀下的简单 `:parameter` 路由。唯一的通配符例外是非根、完全静态前缀后的末尾 `/**`：本示例的 `/api/inspect/**` 仅生成请求固定端点 `/api/inspect` 的 `getApiInspect`，不会生成通配符或任意子路径客户端。根级 `/**`、带参数前缀后的 `/**`、单星号及中间位置的 `**` 均不支持。
 * **版本控制与检查**：生成的 API 文件需提交至 Git 仓库。构建/测试流程会校验生成的代码类型，而 ESLint 会自动忽略生成的代码以保留原始格式。
 
 ---
@@ -112,11 +112,11 @@ dsh web --patch ./cordis.patch.yml
 curl [http://127.0.0.1:3080/api/health](http://127.0.0.1:3080/api/health)
 # 响应: {"status":"ok","uptimeMs":...}
 
-# 2. Exact 模式精确匹配
+# 2. H3 静态字符串路径 /api/server（宿主推导为 exact）
 curl [http://127.0.0.1:3080/api/server](http://127.0.0.1:3080/api/server)
 # 响应: {"port":3080}
 
-# 3. Prefix 模式前缀匹配（匹配 /api/inspect 及子路径，不匹配 /api/inspection）
+# 3. H3 通配符 /api/inspect/**（宿主推导为 prefix，子路径需直接请求，不由 GenAPI 枚举）
 curl '[http://127.0.0.1:3080/api/inspect/request?query=1](http://127.0.0.1:3080/api/inspect/request?query=1)'
 # 响应: {"method":"GET","path":"/api/inspect/request","query":{"query":"1"}}
 

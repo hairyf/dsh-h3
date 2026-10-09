@@ -195,40 +195,18 @@ export function original(configRead: ApiPipeline.ConfigRead): ApiPipeline.Config
     return fail(node, 'use a statically resolvable H3 event handler, not a Node callback or sub-application')
   }
 
-  function descriptorPath(route: ts.ObjectLiteralExpression): string {
-    const properties = new Map<string, ts.Expression>()
-    for (const property of route.properties) {
-      if (ts.isPropertyAssignment(property) && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)))
-        properties.set(property.name.text, property.initializer)
-      else if (ts.isShorthandPropertyAssignment(property))
-        properties.set(property.name.text, property.name)
-      else
-        fail(property, 'route descriptors cannot contain spreads or computed fields')
-    }
-    const kind = properties.get('kind')
-    const path = properties.get('path')
-    if (!kind || !path || !['exact', 'prefix'].includes(textOf(kind)))
-      return fail(route, 'route descriptors require kind: exact/prefix and a static path')
-    return textOf(path)
-  }
-
   function routeOf(route: ts.Expression): { path: string, parameters: Array<Record<string, unknown>> } {
-    const definition = valueOf(route)
-    const literal = ts.isObjectLiteralExpression(definition)
-    let path = literal ? descriptorPath(definition) : textOf(route)
-    if (!path.startsWith('/') || path.startsWith('//') || /[?#\\'`$]/.test(path) || (literal && path !== '/' && path.endsWith('/')))
+    let path = textOf(route)
+    if (!path.startsWith('/') || path.startsWith('//') || /[?#\\'`$]/.test(path))
       return fail(route, 'route path must be an absolute pathname without query, fragment or code delimiters')
-    if (literal && new URL(path, 'http://localhost').pathname !== path)
-      return fail(route, 'route descriptor path must be canonical')
-    if (!literal)
-      path = new URL(path, 'http://localhost').pathname
+    if (/[{}]/.test(path))
+      return fail(route, 'only static paths and simple :parameter segments below a static prefix are supported')
+    path = new URL(path, 'http://localhost').pathname
+    // ponytail: terminal /** exposes only the static base contract; model descendant paths when needed.
+    if (path.endsWith('/**') && path !== '/**' && !path.endsWith('//**') && !path.includes(':'))
+      path = path.slice(0, -3)
     const parameters: Array<Record<string, unknown>> = []
-    if (literal) {
-      if (/[{}]/.test(path))
-        return fail(route, 'literal braces are not supported by the OpenAPI parser')
-      return { path, parameters }
-    }
-    if (/^\/:|[{}*()+]/.test(path))
+    if (/^\/:|[*()+]/.test(path))
       return fail(route, 'only static paths and simple :parameter segments below a static prefix are supported')
     path = path.replace(/\/:([A-Z_$][\w$]*)(?=\/|$)/gi, (_, name: string) => {
       if (parameters.some(parameter => parameter.name === name))

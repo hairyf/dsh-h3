@@ -12,8 +12,8 @@ export function getServerOptions<Options>(source: HostService<Options> | H3Event
 
 function instanceOf<Options>(source: HostService<Options> | H3Event): HostServiceInstance<Options> {
   const instance = typeof source === 'function'
-    ? source.__instance
-    : source?.context?.__dshService as HostServiceInstance<Options> | undefined
+    ? source.__host_instance
+    : source?.context?.__host_instance as HostServiceInstance<Options> | undefined
   if (!instance)
     throw new TypeError('dsh-h3: service is not active or event does not belong to a host service')
   return instance

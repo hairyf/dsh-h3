@@ -2,15 +2,18 @@
 
 Imports:
 
-- `defineWebServer`, `HostApp`, `HostRoute`, `HostService`, `HostServiceInstance` from `dsh-h3`
+- `defineWebServer` and the types `HostService`, `HostServiceInstance` from `dsh-h3`
+- `H3`, `fromNodeHandler`, and other native H3 utilities/types from `h3`
 - `getServerContext`, `getServerOptions` from `dsh-h3/utils`
 - `original` from `dsh-h3/genapi`
 
 ## `defineWebServer<Options>(setup)`
 
 ```ts
+import type { H3 } from 'h3'
+
 function defineWebServer<Options = undefined>(
-  setup: (app: HostApp) => void | HostApp,
+  setup: (app: H3) => void | H3,
 ): HostService<Options>
 ```
 
@@ -45,15 +48,16 @@ export function apply(ctx: Context): void {
 - `server(ctx)` requires `ctx.webServer.register`; otherwise it throws
   `dsh-h3: server(ctx) requires the webServer service`.
 - The `ctx.effect` disposer removes all routes registered by that activation.
-- `server.__instance` points to the most recent successful activation.
+- `server.__host_instance` points to the most recent successful activation.
   Disposing an older instance does not clear a newer one, and disposing the
   current instance does not fall back to an earlier one.
 - If registration fails partway through, only the routes registered during that
   activation are rolled back; pre-existing routes stay intact.
 
-## `HostApp`
+## Native H3 routing
 
-`HostApp` extends the H3 app. Available route registrars:
+`setup` receives the original `H3` instance, without replacing `app.on` or adding
+adapter registrar types. Use H3's native string routes and handlers:
 
 ```ts
 app.on(method, route, handler, opts) // method: HTTPMethod | Lowercase<HTTPMethod> | ''
@@ -62,59 +66,54 @@ app.get / app.post / app.put / app.delete / app.patch
 app.head / app.options / app.connect / app.trace / app.query
 ```
 
-Registrars are chainable and share the H3 signatures:
-
-```ts
-(route: string | HostRoute, handler: HTTPHandler, opts?: RouteOptions) => this
-```
-
-H3 middleware, `app.use`, `app.mount`, route options, and native patterns are
-preserved.
+Registrars keep H3's generic handler inference, optional `RouteOptions`, and
+chainable `this` return. H3 middleware, `app.use`, `app.mount`, route options,
+and native patterns are preserved.
 
 ### Node.js callbacks
 
-A function with **more than one declared parameter** is wrapped with
-`fromNodeHandler` automatically:
+Convert Node callbacks explicitly with `fromNodeHandler` from `h3`:
 
 ```ts
-app.get('/api/text', (req, res) => {
+import { fromNodeHandler } from 'h3'
+
+app.get('/api/text', fromNodeHandler((req, res) => {
   res.end(req.method)
-})
+}))
 ```
 
-Declare exactly `(req, res)`. A single parameter, default parameter, or rest
-parameter is treated as an H3 handler instead; use `fromNodeHandler` explicitly
-in those cases.
+Raw `(req, res)` callbacks are not converted automatically, regardless of their
+parameter count. The explicit wrapper works at runtime, but GenAPI cannot
+analyse Node handlers.
 
-## `HostRoute` and path matching
+## String paths and host matching
 
-```ts
-type HostRoute = Omit<WebRoute, 'handler'>
-// { kind: 'exact' | 'prefix', path: string }
-```
+The internal adapter infers host matching from native H3 string paths:
 
 | Path declaration | Host-side matching |
 | --- | --- |
-| `'/api/health'` | exact `/api/health` |
+| `'/api/version'` | exact `/api/version` |
 | `'/api/users/:id'` | prefix `/api/users` (H3 parses `:id`) |
-| `'/api/files/**'` | prefix `/api/files` (H3 parses the wildcard) |
-| `{ kind: 'exact', path: '/api/version' }` | literal exact `/api/version` |
-| `{ kind: 'prefix', path: '/api/inspect' }` | `/api/inspect` and children, not `/api/inspection` |
+| `'/api/inspect/**'` | prefix `/api/inspect` (H3 parses the wildcard) |
 
 Rules and validation:
 
-- A path must be an absolute pathname without a trailing slash, query, fragment,
-  backslash, or non-canonical form; otherwise registration throws a `TypeError`.
+- The inferred host path must be an absolute, canonical pathname without a
+  trailing slash (except `/`), query, fragment, or backslash; otherwise
+  registration throws a `TypeError`.
 - Root-level patterns (`/:id`, `/**`, and similar) are rejected; use a static
   prefix for named routes.
-- A string path with a param/wildcard becomes a **prefix** host route; the
-  handler still receives the full H3 route. Object descriptors are literal.
+- Static paths infer **exact** host routes. Dynamic patterns infer a **prefix**
+  ending before the first dynamic segment; H3 still matches the full pattern.
+  Host prefixes respect segment boundaries: `/api/inspection` does not enter
+  the `/api/inspect` group.
 - The host isolates H3 per route group, so `all`, `HEAD`, and pattern routes
   cannot escape the group's matching rules.
 - Method ownership is per group: an unmatched method returns `405` with an
   `allow` header, and `HEAD` falls back to `GET`.
-- Registering the same `(kind, path)` twice throws (for example,
-  `duplicate exact route`).
+- Registering an already-owned host `(kind, path)` throws (for example,
+  `duplicate exact route`). Multiple H3 routes with the same inferred host key
+  within one activation share a group.
 
 ## `getServerContext` / `getServerOptions`
 

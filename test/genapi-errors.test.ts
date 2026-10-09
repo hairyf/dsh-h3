@@ -82,134 +82,114 @@ describe('genapi handler and contract failures', () => {
     rejects('contract-function.ts', /functions and class instances are not JSON contracts/)
   })
 
-  it('rejects a Node style callback handler (src/genapi.ts:193-195)', () => {
+  it('rejects explicit Node handler conversion (src/genapi.ts:193-195)', () => {
     rejects('handler-node-callback.ts', /use a statically resolvable H3 event handler/)
   })
 
-  it('rejects a handler without any call signature (src/genapi.ts:254-255)', () => {
+  it('rejects a handler without any call signature (src/genapi.ts:232-233)', () => {
     rejects('handler-not-callable.ts', /handler must be callable/)
   })
 
-  it('rejects two contracts read from one handler (src/genapi.ts:260-261)', () => {
+  it('rejects two contracts read from one handler (src/genapi.ts:238-239)', () => {
     rejects('request-twice.ts', /use one getQuery\/readBody contract per handler/)
   })
 
-  it('rejects readBody over a string contract (src/genapi.ts:275-276)', () => {
+  it('rejects readBody over a string contract (src/genapi.ts:253-254)', () => {
     rejects('readbody-string.ts', /readBody requires an object contract with named fields/)
   })
 
-  it('rejects readBody over an array contract (src/genapi.ts:275-276)', () => {
+  it('rejects readBody over an array contract (src/genapi.ts:253-254)', () => {
     rejects('readbody-array.ts', /readBody requires an object contract with named fields/)
   })
 
-  it('rejects readBody over a tuple contract (src/genapi.ts:275-276)', () => {
+  it('rejects readBody over a tuple contract (src/genapi.ts:253-254)', () => {
     rejects('readbody-tuple.ts', /readBody requires an object contract with named fields/)
   })
 
-  it('rejects readBody over an index signature contract (src/genapi.ts:275-276)', () => {
+  it('rejects readBody over an index signature contract (src/genapi.ts:253-254)', () => {
     rejects('readbody-index.ts', /readBody requires an object contract with named fields/)
   })
 })
 
-describe('genapi route descriptor failures', () => {
-  it('rejects a descriptor with a spread property (src/genapi.ts:206)', () => {
-    rejects('descriptor-spread.ts', /route descriptors cannot contain spreads or computed fields/)
-  })
-
-  it('rejects a descriptor whose kind is not exact or prefix (src/genapi.ts:210-211)', () => {
-    rejects('descriptor-kind.ts', /route descriptors require kind: exact\/prefix and a static path/)
-  })
-
-  it('rejects shorthand descriptor properties (src/genapi.ts:203-204)', () => {
-    rejects('descriptor-shorthand.ts', /route paths and HTTP methods must be static strings/)
-  })
-
-  it('rejects a relative route path (src/genapi.ts:219-220)', () => {
+describe('genapi route failures', () => {
+  it('rejects a relative route path (src/genapi.ts:200-201)', () => {
     rejects('path-relative.ts', /route path must be an absolute pathname/)
   })
 
-  it('rejects a protocol relative route path (src/genapi.ts:219-220)', () => {
+  it('rejects a protocol relative route path (src/genapi.ts:200-201)', () => {
     rejects('path-protocol.ts', /route path must be an absolute pathname/)
   })
 
-  it('rejects a route path with a query delimiter (src/genapi.ts:219-220)', () => {
+  it('rejects a route path with a query delimiter (src/genapi.ts:200-201)', () => {
     rejects('path-delimiter.ts', /route path must be an absolute pathname/)
   })
 
-  it('rejects a literal descriptor path with a trailing slash (src/genapi.ts:219-220)', () => {
-    rejects('descriptor-trailing.ts', /route path must be an absolute pathname/)
+  it('rejects a brace pattern before URL normalization', () => {
+    rejects('path-braces.ts', /only static paths and simple :parameter segments/)
   })
 
-  it('rejects a non canonical descriptor path (src/genapi.ts:221-222)', () => {
-    rejects('descriptor-noncanonical.ts', /route descriptor path must be canonical/)
+  it.each(['path-wildcard.ts', 'path-wildcard-interior.ts', 'path-wildcard-root.ts', 'path-wildcard-param.ts', 'path-wildcard-trailing.ts'])('rejects an unsupported wildcard route: %s', (name) => {
+    rejects(name, /only static paths and simple :parameter segments/)
   })
 
-  it('rejects a descriptor path containing braces before the brace parser runs (src/genapi.ts:221-222)', () => {
-    rejects('descriptor-braces.ts', /route descriptor path must be canonical/)
-  })
-
-  it('rejects a wildcard route path (src/genapi.ts:231-232)', () => {
-    rejects('path-wildcard.ts', /only static paths and simple :parameter segments/)
-  })
-
-  it('rejects a duplicated path parameter name (src/genapi.ts:234-235)', () => {
+  it('rejects a duplicated path parameter name (src/genapi.ts:212-213)', () => {
     rejects('path-param-dup.ts', /path parameter names must be unique/)
   })
 
-  it('rejects a malformed path parameter segment (src/genapi.ts:239-240)', () => {
+  it('rejects a malformed path parameter segment (src/genapi.ts:217-218)', () => {
     rejects('path-param-bad.ts', /only simple :parameter segments are supported/)
   })
 
-  it('rejects a method wide route declaration (src/genapi.ts:245-246)', () => {
+  it('rejects a method wide route declaration (src/genapi.ts:223-224)', () => {
     rejects('method-all.ts', /declare a specific OpenAPI HTTP method/)
   })
 
-  it('rejects a duplicated method and path declaration (src/genapi.ts:249-250)', () => {
+  it('rejects a duplicated method and path declaration (src/genapi.ts:227-228)', () => {
     rejects('duplicate-route.ts', /duplicate GET \/api\/duplicate/)
   })
 })
 
 describe('genapi setup failures', () => {
-  it('rejects a setup callback without an app parameter (src/genapi.ts:299-300)', () => {
+  it('rejects a setup callback without an app parameter (src/genapi.ts:277-278)', () => {
     rejects('setup-no-param.ts', /defineWebServer requires a static setup callback with an app parameter/)
   })
 
-  it('rejects a setup that calls something other than app (src/genapi.ts:306-307)', () => {
+  it('rejects a setup that calls something other than app (src/genapi.ts:284-285)', () => {
     rejects('setup-foreign-call.ts', /setup must use direct app.method\(\.\.\.\) route declarations/)
   })
 
-  it('rejects app.on without all three arguments (src/genapi.ts:315-316)', () => {
+  it('rejects app.on without all three arguments (src/genapi.ts:293-294)', () => {
     rejects('setup-on-short.ts', /app.on requires method, path and handler/)
   })
 
-  it('rejects a route declaration without both arguments (src/genapi.ts:320-321)', () => {
+  it('rejects a route declaration without both arguments (src/genapi.ts:298-299)', () => {
     rejects('setup-get-short.ts', /route declarations require path and handler/)
   })
 
-  it('rejects a conditional route registration (src/genapi.ts:333-336)', () => {
+  it('rejects a conditional route registration (src/genapi.ts:311-314)', () => {
     rejects('setup-conditional.ts', /conditional, looped and mounted route registration is not supported/)
   })
 
-  it('rejects a non-const binding inside setup (src/genapi.ts:337-338)', () => {
+  it('rejects a non-const binding inside setup (src/genapi.ts:315-316)', () => {
     rejects('setup-let-binding.ts', /route bindings must be const/)
   })
 
-  it('rejects an indirect app use inside a binding (src/genapi.ts:339-344)', () => {
+  it('rejects an indirect app use inside a binding (src/genapi.ts:317-322)', () => {
     rejects('setup-indirect.ts', /setup must use direct app.method\(\.\.\.\) route declarations/)
   })
 
-  it('rejects a service declared inside a block (src/genapi.ts:362-367)', () => {
+  it('rejects a service declared inside a block (src/genapi.ts:340-345)', () => {
     rejects('setup-nested-module.ts', /services must be declared directly at module scope/)
   })
 
-  it('rejects an input without any defineWebServer route (src/genapi.ts:375-376)', () => {
+  it('rejects an input without any defineWebServer route (src/genapi.ts:353-354)', () => {
     rejects('middleware-only.ts', /no static defineWebServer routes found in input/)
   })
 })
 
 describe('genapi accepted input branches', () => {
-  it('accepts literal route descriptors', () => {
-    const scope = accepts('branches-descriptors.ts')
+  it('accepts native exact, static prefix and root paths', () => {
+    const scope = accepts('branches-paths.ts')
     expect(scope.typings.map(typing => typing.name)).toEqual([
       'GetApiLiteralExactResponse',
       'GetApiLiteralPrefixResponse',
