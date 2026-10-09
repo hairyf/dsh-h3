@@ -103,6 +103,9 @@ describe('host service', () => {
     disposers.push(disposeFirst)
     const firstInstance = service.__host_instance
     expect(getServerContext(service)).toBe(ctx)
+    expectTypeOf(getServerContext(service)).toEqualTypeOf<Context>()
+    expectTypeOf(getServerContext<Context & { custom: string }>(service)).toEqualTypeOf<Context & { custom: string }>()
+    expect(getServerContext<Context & { custom: string }>(service)).toBe(ctx)
     expect(getServerOptions(service)).toBe(first)
     expectTypeOf(getServerOptions(service)).toEqualTypeOf<Options>()
     expect(() => service(ctx, second)).toThrow('duplicate exact route')
@@ -136,6 +139,7 @@ describe('host service', () => {
     const service = defineWebServer(app => app.get('/no-options', defineEventHandler((event) => {
       expect(getServerOptions(event)).toBeUndefined()
       expect(getServerContext(event)).toBe(ctx)
+      expectTypeOf(getServerContext<Context & { custom: string }>(event)).toEqualTypeOf<Context & { custom: string }>()
       return { ok: true }
     })))
     disposers.push(service(ctx))
